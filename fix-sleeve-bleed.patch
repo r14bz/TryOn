@@ -1,72 +1,34 @@
-diff --git a/src/components/ThreeDStudio.tsx b/src/components/ThreeDStudio.tsx
 --- a/src/components/ThreeDStudio.tsx
 +++ b/src/components/ThreeDStudio.tsx
-@@ -59,6 +59,7 @@ interface PrintLayerUniforms {
-   uPrintRot: { value: number };
-   uPrintRough: { value: number };
-   uPrintOn: { value: number };
+@@ -61 +61,2 @@
+-  uPrintOn: { value: number };
++  uPrintOn: { value: number };
 +  uPrintDepth: { value: number };
- }
- 
- function createLayerUniforms(): PrintLayerUniforms {
-@@ -70,6 +71,7 @@ function createLayerUniforms(): PrintLayerUniforms {
-     uPrintRot: { value: 0 },
-     uPrintRough: { value: 0.8 },
-     uPrintOn: { value: 0 },
-+    uPrintDepth: { value: 0.09 },
-   };
- }
- 
-@@ -89,6 +91,7 @@ function applyPrintShader(material: THREE.MeshStandardMaterial, layers: PrintLaye
- uniform float uPrintRot${i};
- uniform float uPrintRough${i};
- uniform float uPrintOn${i};
+@@ -76 +76,2 @@
+-    uPrintOn: { value: 0 }
++    uPrintOn: { value: 0 },
++    uPrintDepth: { value: 0.09 }
+@@ -96 +96,2 @@
+-uniform float uPrintOn${i};`
++uniform float uPrintOn${i};
 +uniform float uPrintDepth${i};`
-     )
-     .join('\n');
- 
-@@ -107,12 +110,18 @@ uniform float uPrintOn${i};`
-       (_, i) => `{
-   vec3 rel = vPrintPos - uPrintOrigin${i};
+@@ -105 +105,2 @@
+-  vec3 rel = vPrintPos - uPrintOrigin${i};
++  vec3 rel = vPrintPos - uPrintOrigin${i};
 +  float depth = dot(rel, uPrintAxis${i});
-   vec2 p = vec2(dot(rel, uPrintRight${i}), dot(rel, uPrintUp${i}));
-   float cr = cos(uPrintRot${i});
-   float sr = sin(uPrintRot${i});
-   p = vec2(cr * p.x - sr * p.y, sr * p.x + cr * p.y);
-   vec2 uv = p / uPrintSize${i} + 0.5;
-   vec4 dc = texture2D(uPrintMap${i}, clamp(uv, 0.0, 1.0));
-   // Only cloth that faces the projector gets printed (fades out around the sides)
+@@ -113 +113,4 @@
 -  float facing = smoothstep(0.30, 0.65, dot(pNrm, uPrintAxis${i}));
 +  float facing = smoothstep(0.45, 0.78, dot(pNrm, uPrintAxis${i}));
-+  // Only cloth NEAR the projector plane is printed. The opposite side of a
-+  // narrow cloth tube (e.g. the sleeve) is also front-facing and inside the
-+  // projection frame, so it must be rejected or the print shows through.
++  // Only cloth NEAR the projector plane is printed; the far side of a
++  // narrow cloth tube (sleeve) is also front-facing and must be rejected.
 +  float near = 1.0 - smoothstep(uPrintDepth${i}, uPrintDepth${i} * 2.0, abs(depth));
-   bool inside = uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0;
+@@ -115 +115 @@
 -  float pm = (uPrintOn${i} > 0.5 && gl_FrontFacing && inside) ? dc.a * facing : 0.0;
 +  float pm = (uPrintOn${i} > 0.5 && gl_FrontFacing && inside) ? dc.a * facing * near : 0.0;
-   diffuseColor.rgb = mix(diffuseColor.rgb, dc.rgb, pm);
-   printRough = mix(printRough, uPrintRough${i}, pm);
-   printMask = max(printMask, pm);
- }`
-     )
-     .join('\n');
-@@ -124,7 +133,7 @@ uniform float uPrintOn${i};`
-       );
-   };
- 
+@@ -153 +153 @@
 -  material.customProgramCacheKey = () => `sablon-print-projection-v2-${layers.length}`;
 +  material.customProgramCacheKey = () => `sablon-print-projection-v3-${layers.length}`;
- }
- 
- /** Projector frame (mesh-local) for each placement side. */
-@@ -537,6 +546,10 @@ function getPrintFrame(side: PlacementSide, gx: number, gy: number) {
-       const isSleeve = g.side === 'sleeve_left' || g.side === 'sleeve_right';
-       const width = 0.17 * g.scale * (isSleeve ? 0.55 : 1.0);
-       u.uPrintSize.value.set(width, width * entry.aspect);
-+      // Sleeve is a narrow cloth tube (~0.1 units across); a tight depth slab
-+      // keeps the print on the near outer side only. Body cloth tolerates more.
+@@ -532 +532,2 @@
+-      u.uPrintSize.value.set(width, width * entry.aspect);
++      u.uPrintSize.value.set(width, width * entry.aspect);
 +      u.uPrintDepth.value = isSleeve ? 0.045 : 0.09;
-       // Positive rotation = clockwise as seen by the viewer
-       u.uPrintRot.value = (g.rotation * Math.PI) / 180;
-       u.uPrintRough.value = technique.id === 'plastisol' ? 0.35 : 0.8;
