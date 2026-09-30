@@ -1,21 +1,25 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# SablonAR Studio (TryOn 3D)
 
-# Run and deploy your AI Studio app
+Live preview sablon kaos: visualizer 3D (Three.js), mockup 2D, dan mode kamera AR.
 
-This contains everything you need to run your app locally.
+## Jalankan lokal
 
-View your app in AI Studio: https://ai.studio/apps/23e0fea7-cc47-42cf-91e5-321c76c1ee82
+```
+bun install    # atau: npm install
+bun run dev    # http://localhost:3000
+```
 
-## Run Locally
+## Build
 
-**Prerequisites:**  Node.js
+```
+bun run build
+bun run preview
+```
 
+Deploy: Vercel (build command `vite build`, output `dist`).
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
-# TryOn
+## Catatan
+
+- Model 3D ada di `public/shirt_baked.glb` (dimuat lewat `/shirt_baked.glb`).
+- Gambar katalog kaos 2D ada di `src/assets/images` dan di-import lewat bundler.
+- Mode AR memakai kamera (`getUserMedia`), butuh HTTPS atau localhost.

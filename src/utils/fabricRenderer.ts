@@ -1,4 +1,8 @@
 import { FabricInfo, TshirtColor, GraphicSettings, PrintTechniqueInfo, StudioBgColor } from '../types/sablon';
+import blackFrontUrl from '../assets/images/tshirt_black_front_1790758501022.jpg';
+import blackBackUrl from '../assets/images/tshirt_black_back_1790758517353.jpg';
+import whiteFrontUrl from '../assets/images/tshirt_white_front_1790758537680.jpg';
+import whiteBackUrl from '../assets/images/tshirt_white_back_1790758582809.jpg';
 
 // Image cache to avoid re-loading on every frame
 const imageCache = new Map<string, HTMLImageElement>();
@@ -21,10 +25,10 @@ export function getCachedImage(src: string): Promise<HTMLImageElement> {
 
 // Pristine studio catalog image assets
 export const TSHIRT_ASSETS = {
-  black_front: '/src/assets/images/tshirt_black_front_1790758501022.jpg',
-  black_back: '/src/assets/images/tshirt_black_back_1790758517353.jpg',
-  white_front: '/src/assets/images/tshirt_white_front_1790758537680.jpg',
-  white_back: '/src/assets/images/tshirt_white_back_1790758582809.jpg'
+  black_front: blackFrontUrl,
+  black_back: blackBackUrl,
+  white_front: whiteFrontUrl,
+  white_back: whiteBackUrl
 };
 
 // Mask cache to store precomputed binary/alpha masks of the garment silhouette

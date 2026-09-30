@@ -78,6 +78,14 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   const currentRotationY = useRef(0);
   const currentRotationX = useRef(0);
   const [isAutoRotating, setIsAutoRotating] = useState(false);
+  // Ref mirror so the render loop (created once) always reads the latest value
+  const isAutoRotatingRef = useRef(false);
+  useEffect(() => {
+    isAutoRotatingRef.current = isAutoRotating;
+  }, [isAutoRotating]);
+
+  // Guards against overlapping async decal builds
+  const decalRequestId = useRef(0);
   
   // Interactive Mode: 'rotate' (spin 360) vs 'graphic' (drag graphic)
   const [interactMode, setInteractMode] = useState<'rotate' | 'graphic'>('rotate');
@@ -108,6 +116,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
+    let disposed = false;
 
     const width = container.clientWidth || 600;
     const height = container.clientHeight || 600;
@@ -121,7 +130,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     rendererRef.current = renderer;
 
     renderer.domElement.style.width = '100%';
@@ -176,6 +185,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     loader.load(
       '/shirt_baked.glb',
       (gltf) => {
+        if (disposed) return;
         const model = gltf.scene;
 
         model.traverse((child) => {
@@ -220,7 +230,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     const animate = () => {
       animId = requestAnimationFrame(animate);
 
-      if (isAutoRotating) {
+      if (isAutoRotatingRef.current) {
         currentRotationY.current += 0.008;
       } else {
         currentRotationY.current += (targetRotationY.current - currentRotationY.current) * 0.12;
@@ -249,9 +259,37 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     window.addEventListener('resize', handleResize);
 
     return () => {
+      disposed = true;
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
+
+      // Free GPU resources: geometries, materials and textures
+      scene.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        mesh.geometry?.dispose();
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        mats.forEach((m) => {
+          if (!m) return;
+          const std = m as THREE.MeshStandardMaterial;
+          std.map?.dispose();
+          std.normalMap?.dispose();
+          m.dispose();
+        });
+      });
+
+      decalMeshRef.current = null;
+      tshirtMeshRef.current = null;
+      tshirtRootGroup.current = null;
+      sceneRef.current = null;
+      cameraRef.current = null;
+      rendererRef.current = null;
+
       renderer.dispose();
+      renderer.forceContextLoss();
+      if (renderer.domElement.parentNode === container) {
+        container.removeChild(renderer.domElement);
+      }
     };
   }, []);
 
@@ -292,18 +330,29 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   }, [color, fabric, isModelLoaded]);
 
   // 5. Raycast-Accurate Decal Placement (HUGS THE SURFACE, NO FLOATING, NO SLICING)
+  const removeCurrentDecal = useCallback(() => {
+    const old = decalMeshRef.current;
+    if (!old) return;
+    old.parent?.remove(old);
+    old.geometry.dispose();
+    const mat = old.material as THREE.MeshStandardMaterial;
+    mat.map?.dispose();
+    mat.dispose();
+    decalMeshRef.current = null;
+  }, []);
+
   const updateGraphicDecal = useCallback(async () => {
+    const requestId = ++decalRequestId.current;
     const shirtMesh = tshirtMeshRef.current;
     if (!shirtMesh || !graphic.imageUrl) {
-      if (decalMeshRef.current && decalMeshRef.current.parent) {
-        decalMeshRef.current.parent.remove(decalMeshRef.current);
-        decalMeshRef.current = null;
-      }
+      removeCurrentDecal();
       return;
     }
 
     try {
       const graphicImg = await getCachedImage(graphic.imageUrl);
+      // A newer request started (or the scene was torn down) while loading
+      if (requestId !== decalRequestId.current || tshirtMeshRef.current !== shirtMesh) return;
 
       const dCanvas = document.createElement('canvas');
       dCanvas.width = 1024;
@@ -328,11 +377,8 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
       decalTexture.colorSpace = THREE.SRGBColorSpace;
       decalTexture.needsUpdate = true;
 
-      // Clean up previous decal
-      if (decalMeshRef.current && decalMeshRef.current.parent) {
-        decalMeshRef.current.parent.remove(decalMeshRef.current);
-        decalMeshRef.current = null;
-      }
+      // Clean up previous decal (and free its GPU memory)
+      removeCurrentDecal();
 
       const aspect = (graphicImg.height || 1) / (graphicImg.width || 1);
       const baseSize = 0.17 * graphic.scale;
@@ -432,7 +478,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     } catch (err) {
       console.error('Error creating 3D decal:', err);
     }
-  }, [graphic, technique, isModelLoaded, onCanvasRendered]);
+  }, [graphic, technique, isModelLoaded, onCanvasRendered, removeCurrentDecal]);
 
   useEffect(() => {
     updateGraphicDecal();

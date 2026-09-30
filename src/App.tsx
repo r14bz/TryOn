@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, lazy, Suspense } from 'react';
 import { 
   Sparkles, 
   Image as ImageIcon, 
@@ -26,12 +26,16 @@ import { TSHIRT_COLORS } from './data/colorData';
 import { SAMPLE_ARTWORKS } from './data/sampleArtworks';
 import { Header } from './components/Header';
 import { StudioToolbar } from './components/StudioToolbar';
-import { ThreeDStudio } from './components/ThreeDStudio';
 import { StudioMockup } from './components/StudioMockup';
 import { GraphicControlPanel } from './components/GraphicControlPanel';
 import { FabricColorSelector } from './components/FabricColorSelector';
 import { PrintTechniqueSelector } from './components/PrintTechniqueSelector';
-import { ARCameraView } from './components/ARCameraView';
+const ThreeDStudio = lazy(() =>
+  import('./components/ThreeDStudio').then((m) => ({ default: m.ThreeDStudio }))
+);
+const ARCameraView = lazy(() =>
+  import('./components/ARCameraView').then((m) => ({ default: m.ARCameraView }))
+);
 import { TextureInspectModal } from './components/TextureInspectModal';
 import { PriceQuoteModal } from './components/PriceQuoteModal';
 
@@ -153,6 +157,7 @@ export default function App() {
           {/* Render Active Studio Canvas */}
           <div className="w-full h-full relative">
             {studioMode === '3d' ? (
+              <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-zinc-500 text-sm">Memuat studio 3D…</div>}>
               <ThreeDStudio
                 fabric={selectedFabric}
                 color={selectedColor}
@@ -169,6 +174,7 @@ export default function App() {
                 onOpenInspect={() => setIsTextureModalOpen(true)}
                 onSwitchTo2D={() => setStudioMode('2d')}
               />
+              </Suspense>
             ) : (
               <StudioMockup
                 fabric={selectedFabric}
@@ -411,6 +417,7 @@ export default function App() {
 
       {/* Augmented Reality Try-On Fullscreen Overlay */}
       {isARActive && (
+        <Suspense fallback={null}>
         <ARCameraView
           fabric={selectedFabric}
           color={selectedColor}
@@ -419,6 +426,7 @@ export default function App() {
           renderedTshirtCanvas={renderedCanvas}
           onClose={() => setIsARActive(false)}
         />
+        </Suspense>
       )}
 
       {/* Fabric Texture Macro Inspect Modal */}
