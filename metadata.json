@@ -1,0 +1,6 @@
+{
+  "name": "SablonAR Studio - Live AR T-Shirt Preview",
+  "description": "Aplikasi live preview sablon kaos polos berbasis Augmented Reality (AR) dan 3D visualizer tekstur kain realistis.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
