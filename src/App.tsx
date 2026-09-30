@@ -423,7 +423,6 @@ export default function App() {
           color={selectedColor}
           graphic={graphic}
           technique={selectedTechnique}
-          renderedTshirtCanvas={renderedCanvas}
           onClose={() => setIsARActive(false)}
         />
         </Suspense>

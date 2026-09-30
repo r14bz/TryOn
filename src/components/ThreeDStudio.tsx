@@ -1,7 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { DecalGeometry } from 'three/examples/jsm/geometries/DecalGeometry.js';
 import { 
   RotateCcw, 
   ZoomIn, 
@@ -43,6 +42,134 @@ interface ThreeDStudioProps {
   onSwitchTo2D?: () => void;
 }
 
+
+// ---------------------------------------------------------------------------
+// Print projection: the artwork is projected onto the shirt surface INSIDE the
+// fabric shader (no extra geometry), so it always hugs the cloth, follows the
+// normal-mapped folds and lighting, and can never float, slice or tear.
+// Coordinates are the mesh's local space (raw GLB units).
+// ---------------------------------------------------------------------------
+interface PrintUniforms {
+  uPrintMap: { value: THREE.Texture };
+  uPrintOrigin: { value: THREE.Vector3 };
+  uPrintAxis: { value: THREE.Vector3 };
+  uPrintRight: { value: THREE.Vector3 };
+  uPrintUp: { value: THREE.Vector3 };
+  uPrintSize: { value: THREE.Vector2 };
+  uPrintRot: { value: number };
+  uPrintRough: { value: number };
+  uPrintOn: { value: number };
+}
+
+function createPrintUniforms(): PrintUniforms {
+  const empty = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1);
+  empty.needsUpdate = true;
+  return {
+    uPrintMap: { value: empty },
+    uPrintOrigin: { value: new THREE.Vector3() },
+    uPrintAxis: { value: new THREE.Vector3(0, 0, 1) },
+    uPrintRight: { value: new THREE.Vector3(1, 0, 0) },
+    uPrintUp: { value: new THREE.Vector3(0, 1, 0) },
+    uPrintSize: { value: new THREE.Vector2(0.17, 0.17) },
+    uPrintRot: { value: 0 },
+    uPrintRough: { value: 0.8 },
+    uPrintOn: { value: 0 }
+  };
+}
+
+function applyPrintShader(material: THREE.MeshStandardMaterial, u: PrintUniforms) {
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, u);
+
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vPrintPos;\nvarying vec3 vPrintNrm;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPrintPos = position;\nvPrintNrm = normal;');
+
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+varying vec3 vPrintPos;
+varying vec3 vPrintNrm;
+uniform sampler2D uPrintMap;
+uniform vec3 uPrintOrigin;
+uniform vec3 uPrintAxis;
+uniform vec3 uPrintRight;
+uniform vec3 uPrintUp;
+uniform vec2 uPrintSize;
+uniform float uPrintRot;
+uniform float uPrintRough;
+uniform float uPrintOn;`
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+float printMask = 0.0;
+if (uPrintOn > 0.5 && gl_FrontFacing) {
+  // Only cloth that faces the projector gets printed (fades out around the sides)
+  float facing = dot(normalize(vPrintNrm), uPrintAxis);
+  float k = smoothstep(0.30, 0.65, facing);
+  vec3 rel = vPrintPos - uPrintOrigin;
+  vec2 p = vec2(dot(rel, uPrintRight), dot(rel, uPrintUp));
+  float c = cos(uPrintRot);
+  float s = sin(uPrintRot);
+  p = vec2(c * p.x - s * p.y, s * p.x + c * p.y);
+  vec2 uv = p / uPrintSize + 0.5;
+  if (k > 0.0 && uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0) {
+    vec4 dc = texture2D(uPrintMap, uv);
+    printMask = dc.a * k;
+    diffuseColor.rgb = mix(diffuseColor.rgb, dc.rgb, printMask);
+  }
+}`
+      )
+      .replace(
+        '#include <roughnessmap_fragment>',
+        `#include <roughnessmap_fragment>
+roughnessFactor = mix(roughnessFactor, uPrintRough, printMask);`
+      );
+  };
+  material.customProgramCacheKey = () => 'sablon-print-projection-v1';
+}
+
+/** Projector frame (mesh-local) for each placement side. */
+function getPrintFrame(side: PlacementSide, gx: number, gy: number) {
+  // gx/gy: -50..50 (%) from the placement sliders
+  const axis = new THREE.Vector3();
+  const origin = new THREE.Vector3();
+  let rangeX = 0.26;
+  let rangeY = 0.30;
+
+  switch (side) {
+    case 'front':
+      axis.set(0, 0, 1);
+      origin.set(0, -0.005, 0);
+      break;
+    case 'back':
+      axis.set(0, 0, -1);
+      origin.set(0, -0.005, 0);
+      break;
+    case 'sleeve_left': // wearer's left = +x in the model
+      axis.set(0.94, 0.34, -0.1).normalize();
+      origin.set(0.22, 0.125, -0.025);
+      rangeX = 0.14;
+      rangeY = 0.12;
+      break;
+    default: // sleeve_right
+      axis.set(-0.94, 0.34, -0.1).normalize();
+      origin.set(-0.22, 0.125, -0.025);
+      rangeX = 0.14;
+      rangeY = 0.12;
+  }
+
+  // Viewer-oriented basis: up follows +Y, right = (looking direction) x up
+  const up = new THREE.Vector3(0, 1, 0).addScaledVector(axis, -axis.y).normalize();
+  const right = new THREE.Vector3().crossVectors(axis.clone().negate(), up).normalize();
+
+  origin.addScaledVector(right, (gx / 100) * rangeX);
+  origin.addScaledVector(up, -(gy / 100) * rangeY);
+  return { axis, origin, right, up };
+}
+
 export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   fabric,
   color,
@@ -65,7 +192,8 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const tshirtRootGroup = useRef<THREE.Group | null>(null);
   const tshirtMeshRef = useRef<THREE.Mesh | null>(null);
-  const decalMeshRef = useRef<THREE.Mesh | null>(null);
+  const printUniformsRef = useRef<PrintUniforms | null>(null);
+  const printTextureRef = useRef<THREE.Texture | null>(null);
 
   // Lights
   const ambientLightRef = useRef<THREE.AmbientLight | null>(null);
@@ -208,6 +336,9 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
                 normalScale: new THREE.Vector2(1.2, 1.2),
                 side: THREE.DoubleSide
               });
+              const printUniforms = createPrintUniforms();
+              applyPrintShader(newMat, printUniforms);
+              printUniformsRef.current = printUniforms;
               mesh.material = newMat;
             }
             tshirtMeshRef.current = mesh;
@@ -278,7 +409,9 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
         });
       });
 
-      decalMeshRef.current = null;
+      printUniformsRef.current = null;
+      printTextureRef.current?.dispose();
+      printTextureRef.current = null;
       tshirtMeshRef.current = null;
       tshirtRootGroup.current = null;
       sceneRef.current = null;
@@ -329,38 +462,31 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     mat.needsUpdate = true;
   }, [color, fabric, isModelLoaded]);
 
-  // 5. Raycast-Accurate Decal Placement (HUGS THE SURFACE, NO FLOATING, NO SLICING)
-  const removeCurrentDecal = useCallback(() => {
-    const old = decalMeshRef.current;
-    if (!old) return;
-    old.parent?.remove(old);
-    old.geometry.dispose();
-    const mat = old.material as THREE.MeshStandardMaterial;
-    mat.map?.dispose();
-    mat.dispose();
-    decalMeshRef.current = null;
-  }, []);
-
-  const updateGraphicDecal = useCallback(async () => {
+  // 5. Artwork projection onto the fabric (shader-based, hugs the surface)
+  const updateGraphicPrint = useCallback(async () => {
     const requestId = ++decalRequestId.current;
-    const shirtMesh = tshirtMeshRef.current;
-    if (!shirtMesh || !graphic.imageUrl) {
-      removeCurrentDecal();
+    const uniforms = printUniformsRef.current;
+    if (!uniforms) return;
+
+    if (!graphic.imageUrl) {
+      uniforms.uPrintOn.value = 0;
       return;
     }
 
     try {
       const graphicImg = await getCachedImage(graphic.imageUrl);
       // A newer request started (or the scene was torn down) while loading
-      if (requestId !== decalRequestId.current || tshirtMeshRef.current !== shirtMesh) return;
+      if (requestId !== decalRequestId.current || printUniformsRef.current !== uniforms) return;
+
+      const texW = 1024;
+      const aspect = (graphicImg.height || 1) / (graphicImg.width || 1);
+      const texH = Math.max(64, Math.min(2048, Math.round(texW * aspect)));
 
       const dCanvas = document.createElement('canvas');
-      dCanvas.width = 1024;
-      dCanvas.height = 1024;
+      dCanvas.width = texW;
+      dCanvas.height = texH;
       const dctx = dCanvas.getContext('2d');
       if (!dctx) return;
-
-      dctx.clearRect(0, 0, 1024, 1024);
 
       if (graphic.colorFilter === 'monochrome_white') {
         dctx.filter = 'brightness(200%) grayscale(100%)';
@@ -369,120 +495,44 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
       } else if (graphic.colorFilter === 'vintage_warm') {
         dctx.filter = 'sepia(45%) contrast(90%)';
       }
-
       dctx.globalAlpha = graphic.opacity;
-      dctx.drawImage(graphicImg, 0, 0, 1024, 1024);
+      dctx.drawImage(graphicImg, 0, 0, texW, texH);
 
-      const decalTexture = new THREE.CanvasTexture(dCanvas);
-      decalTexture.colorSpace = THREE.SRGBColorSpace;
-      decalTexture.needsUpdate = true;
+      const tex = new THREE.CanvasTexture(dCanvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = rendererRef.current?.capabilities.getMaxAnisotropy() ?? 4;
+      tex.needsUpdate = true;
 
-      // Clean up previous decal (and free its GPU memory)
-      removeCurrentDecal();
+      const oldTex = printTextureRef.current;
+      printTextureRef.current = tex;
+      uniforms.uPrintMap.value = tex;
+      oldTex?.dispose();
 
-      const aspect = (graphicImg.height || 1) / (graphicImg.width || 1);
-      const baseSize = 0.17 * graphic.scale;
+      const frame = getPrintFrame(graphic.side, graphic.x, graphic.y);
+      uniforms.uPrintOrigin.value.copy(frame.origin);
+      uniforms.uPrintAxis.value.copy(frame.axis);
+      uniforms.uPrintRight.value.copy(frame.right);
+      uniforms.uPrintUp.value.copy(frame.up);
 
-      const normX = (graphic.x / 100);
-      const normY = (graphic.y / 100);
-
-      // Cast ray to find EXACT surface point on shirt mesh
-      const raycaster = new THREE.Raycaster();
-      let rayOrigin: THREE.Vector3;
-      let rayDirection: THREE.Vector3;
-      let fallbackPos: THREE.Vector3;
-      let fallbackDir: THREE.Vector3;
-
-      if (graphic.side === 'front') {
-        rayOrigin = new THREE.Vector3(normX * 0.12, 0.04 - normY * 0.12, 0.40);
-        rayDirection = new THREE.Vector3(0, 0, -1);
-        fallbackPos = new THREE.Vector3(normX * 0.12, 0.04 - normY * 0.12, 0.133);
-        fallbackDir = new THREE.Vector3(0, 0, -1);
-      } else if (graphic.side === 'back') {
-        rayOrigin = new THREE.Vector3(-normX * 0.12, 0.04 - normY * 0.12, -0.40);
-        rayDirection = new THREE.Vector3(0, 0, 1);
-        fallbackPos = new THREE.Vector3(-normX * 0.12, 0.04 - normY * 0.12, -0.117);
-        fallbackDir = new THREE.Vector3(0, 0, 1);
-      } else if (graphic.side === 'sleeve_left') {
-        rayOrigin = new THREE.Vector3(0.42, 0.13 - normY * 0.08, -0.025 - normX * 0.07);
-        rayDirection = new THREE.Vector3(-1, 0, 0);
-        fallbackPos = new THREE.Vector3(0.24, 0.13 - normY * 0.08, -0.025 - normX * 0.07);
-        fallbackDir = new THREE.Vector3(-1, 0, 0);
-      } else {
-        rayOrigin = new THREE.Vector3(-0.42, 0.13 - normY * 0.08, -0.025 + normX * 0.07);
-        rayDirection = new THREE.Vector3(1, 0, 0);
-        fallbackPos = new THREE.Vector3(-0.24, 0.13 - normY * 0.08, -0.025 + normX * 0.07);
-        fallbackDir = new THREE.Vector3(1, 0, 0);
-      }
-
-      raycaster.set(rayOrigin, rayDirection);
-      const hits = raycaster.intersectObject(shirtMesh, false);
-
-      let targetPos: THREE.Vector3;
-      let targetDir: THREE.Vector3;
-
-      if (hits.length > 0 && hits[0].face) {
-        targetPos = hits[0].point;
-        // Projector direction points inward into the surface (opposite of surface normal)
-        targetDir = hits[0].face.normal.clone().negate();
-      } else {
-        targetPos = fallbackPos;
-        targetDir = fallbackDir;
-      }
-
-      // Compute precise orientation matrix from projector direction
-      const matrix = new THREE.Matrix4();
-      const upVector = Math.abs(targetDir.y) > 0.92 ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, 1, 0);
-      matrix.lookAt(new THREE.Vector3(0, 0, 0), targetDir, upVector);
-      const orient = new THREE.Euler().setFromRotationMatrix(matrix);
-
-      // Apply graphic rotation
-      if (graphic.side === 'front') {
-        orient.z += -(graphic.rotation * Math.PI) / 180;
-      } else if (graphic.side === 'back') {
-        orient.z += (graphic.rotation * Math.PI) / 180;
-      } else if (graphic.side === 'sleeve_left') {
-        orient.z += (graphic.rotation * Math.PI) / 180;
-      } else {
-        orient.z += -(graphic.rotation * Math.PI) / 180;
-      }
-
-      // Projector box depth is 0.09, centered right at the surface point
-      // (0.045 inside the cloth and 0.045 outside, so surface is strictly enveloped)
-      const scaleMultiplier = (graphic.side === 'sleeve_left' || graphic.side === 'sleeve_right') ? 0.65 : 1.0;
-      const size = new THREE.Vector3(
-        baseSize * scaleMultiplier, 
-        baseSize * aspect * scaleMultiplier, 
-        0.09
-      );
-
-      const decalGeo = new DecalGeometry(shirtMesh, targetPos, orient, size);
-      const decalMat = new THREE.MeshStandardMaterial({
-        map: decalTexture,
-        transparent: true,
-        depthTest: true,
-        depthWrite: false,
-        polygonOffset: true,
-        polygonOffsetFactor: -2,
-        roughness: technique.id === 'plastisol' ? 0.35 : 0.80,
-        metalness: 0.01
-      });
-
-      const decalMesh = new THREE.Mesh(decalGeo, decalMat);
-      shirtMesh.add(decalMesh);
-      decalMeshRef.current = decalMesh;
+      const isSleeve = graphic.side === 'sleeve_left' || graphic.side === 'sleeve_right';
+      const width = 0.17 * graphic.scale * (isSleeve ? 0.55 : 1.0);
+      uniforms.uPrintSize.value.set(width, width * aspect);
+      // Positive rotation = clockwise as seen by the viewer
+      uniforms.uPrintRot.value = (graphic.rotation * Math.PI) / 180;
+      uniforms.uPrintRough.value = technique.id === 'plastisol' ? 0.35 : 0.8;
+      uniforms.uPrintOn.value = 1;
 
       if (onCanvasRendered && rendererRef.current) {
         onCanvasRendered(rendererRef.current.domElement);
       }
     } catch (err) {
-      console.error('Error creating 3D decal:', err);
+      console.error('Error applying 3D print:', err);
     }
-  }, [graphic, technique, isModelLoaded, onCanvasRendered, removeCurrentDecal]);
+  }, [graphic, technique, isModelLoaded, onCanvasRendered]);
 
   useEffect(() => {
-    updateGraphicDecal();
-  }, [updateGraphicDecal]);
+    updateGraphicPrint();
+  }, [updateGraphicPrint]);
 
   // Pointer & Touch Handlers
   const handlePointerDown = (e: React.PointerEvent) => {

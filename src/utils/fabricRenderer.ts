@@ -3,6 +3,10 @@ import blackFrontUrl from '../assets/images/tshirt_black_front_1790758501022.jpg
 import blackBackUrl from '../assets/images/tshirt_black_back_1790758517353.jpg';
 import whiteFrontUrl from '../assets/images/tshirt_white_front_1790758537680.jpg';
 import whiteBackUrl from '../assets/images/tshirt_white_back_1790758582809.jpg';
+import maskBlackFrontUrl from '../assets/masks/black_front.png';
+import maskBlackBackUrl from '../assets/masks/black_back.png';
+import maskWhiteFrontUrl from '../assets/masks/white_front.png';
+import maskWhiteBackUrl from '../assets/masks/white_back.png';
 
 // Image cache to avoid re-loading on every frame
 const imageCache = new Map<string, HTMLImageElement>();
@@ -31,41 +35,165 @@ export const TSHIRT_ASSETS = {
   white_back: whiteBackUrl
 };
 
-// Mask cache to store precomputed binary/alpha masks of the garment silhouette
-const maskCache = new Map<string, Uint8Array>();
+// Pre-computed silhouette masks: one per photo (each photo has its own pose/shape,
+// so a mask must never be shared between the black and the white photo).
+export const MASK_ASSETS = {
+  black_front: maskBlackFrontUrl,
+  black_back: maskBlackBackUrl,
+  white_front: maskWhiteFrontUrl,
+  white_back: maskWhiteBackUrl
+};
 
-export function getGarmentMask(blackImg: HTMLImageElement, width: number, height: number): Uint8Array {
-  const key = `${blackImg.src}_${width}_${height}`;
-  if (maskCache.has(key)) {
-    return maskCache.get(key)!;
+export type ShirtSide = 'front' | 'back';
+
+/** Per-photo data needed to render the 2D shirt (photo, silhouette alpha, cloth-fold maps). */
+export interface ShirtRenderAssets {
+  baseImg: HTMLImageElement;
+  mask: Uint8Array; // 0..255 garment coverage, width*height
+  fold: FoldMaps;
+}
+
+/** Cloth-fold information derived from the photo, used to make prints follow the fabric. */
+export interface FoldMaps {
+  shade: Int16Array; // relative brightness of folds, x1000
+  dx: Int16Array; // displacement (px) x256
+  dy: Int16Array;
+}
+
+const alphaCache = new Map<string, Uint8Array>();
+const foldCache = new Map<string, FoldMaps>();
+
+async function getMaskAlpha(url: string, width: number, height: number): Promise<Uint8Array> {
+  const key = `${url}_${width}_${height}`;
+  const hit = alphaCache.get(key);
+  if (hit) return hit;
+  const img = await getCachedImage(url);
+  const c = document.createElement('canvas');
+  c.width = width;
+  c.height = height;
+  const cx = c.getContext('2d', { willReadFrequently: true })!;
+  cx.drawImage(img, 0, 0, width, height);
+  const data = cx.getImageData(0, 0, width, height).data;
+  const out = new Uint8Array(width * height);
+  for (let i = 0; i < out.length; i++) out[i] = data[i * 4];
+  alphaCache.set(key, out);
+  return out;
+}
+
+/** Separable box blur (running sum), edge-clamped. Two passes ~ gaussian. Never writes into `src`. */
+function boxBlur(src: Float32Array, w: number, h: number, r: number, passes = 2): Float32Array {
+  const tmp = new Float32Array(src.length);
+  const bufA = new Float32Array(src.length);
+  const bufB = new Float32Array(src.length);
+  const win = r * 2 + 1;
+  let from: Float32Array = src;
+  let to: Float32Array = bufA;
+  for (let pass = 0; pass < passes; pass++) {
+    // horizontal: from -> tmp
+    for (let y = 0; y < h; y++) {
+      const row = y * w;
+      let sum = 0;
+      for (let k = -r; k <= r; k++) sum += from[row + Math.min(w - 1, Math.max(0, k))];
+      for (let x = 0; x < w; x++) {
+        tmp[row + x] = sum / win;
+        sum += from[row + Math.min(w - 1, x + r + 1)] - from[row + Math.max(0, x - r)];
+      }
+    }
+    // vertical: tmp -> to
+    for (let x = 0; x < w; x++) {
+      let sum = 0;
+      for (let k = -r; k <= r; k++) sum += tmp[Math.min(h - 1, Math.max(0, k)) * w + x];
+      for (let y = 0; y < h; y++) {
+        to[y * w + x] = sum / win;
+        sum += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x];
+      }
+    }
+    from = to;
+    to = to === bufA ? bufB : bufA;
+  }
+  return from;
+}
+
+function buildFoldMaps(img: HTMLImageElement, mask: Uint8Array, w: number, h: number): FoldMaps {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const cx = c.getContext('2d', { willReadFrequently: true })!;
+  cx.drawImage(img, 0, 0, w, h);
+  const px = cx.getImageData(0, 0, w, h).data;
+
+  const n = w * h;
+  const lum = new Float32Array(n);
+  let sum = 0;
+  let cnt = 0;
+  for (let i = 0; i < n; i++) {
+    const l = px[i * 4] * 0.299 + px[i * 4 + 1] * 0.587 + px[i * 4 + 2] * 0.114;
+    lum[i] = l;
+    if (mask[i] > 200) { sum += l; cnt++; }
+  }
+  const mean = cnt ? sum / cnt : 128;
+  // Background must not bleed into the blurred garment brightness
+  for (let i = 0; i < n; i++) if (mask[i] < 128) lum[i] = mean;
+
+  const mid = boxBlur(lum, w, h, 3);
+  const large = boxBlur(lum, w, h, Math.round(w * 0.02));
+
+  const rel = new Float32Array(n);
+  for (let i = 0; i < n; i++) rel[i] = (mid[i] - large[i]) / (large[i] + 12);
+
+  const shade = new Int16Array(n);
+  for (let i = 0; i < n; i++) {
+    shade[i] = Math.round(Math.max(-0.3, Math.min(0.3, rel[i])) * 1000);
   }
 
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d')!;
-  ctx.drawImage(blackImg, 0, 0, width, height);
-  const data = ctx.getImageData(0, 0, width, height).data;
-
-  const mask = new Uint8Array(width * height);
-  const totalPixels = width * height;
-
-  for (let i = 0; i < totalPixels; i++) {
-    const p = i * 4;
-    // In black t-shirt photo: background is white (>220), shirt is black (<80)
-    const lum = (data[p] + data[p + 1] + data[p + 2]) / 3;
-    if (lum < 160) {
-      mask[i] = 255; // 100% garment
-    } else if (lum < 235) {
-      // Soft anti-aliased edge
-      mask[i] = Math.round(((235 - lum) / 75) * 255);
-    } else {
-      mask[i] = 0; // Pure studio background
+  // Gradient of the fold field -> displacement, normalised to a small RMS so that
+  // black and white shirts (very different contrast) warp the print equally.
+  const gx = new Float32Array(n);
+  const gy = new Float32Array(n);
+  let acc = 0;
+  let m = 0;
+  for (let y = 2; y < h - 2; y++) {
+    for (let x = 2; x < w - 2; x++) {
+      const i = y * w + x;
+      const ax = (rel[i + 2] - rel[i - 2]) * 0.25;
+      const ay = (rel[i + 2 * w] - rel[i - 2 * w]) * 0.25;
+      gx[i] = ax;
+      gy[i] = ay;
+      if (mask[i] > 200) { acc += ax * ax + ay * ay; m++; }
     }
   }
+  const rms = Math.sqrt(acc / Math.max(1, m)) || 1e-6;
+  const targetPx = 0.9 * (w / 900); // RMS displacement in pixels (subtle bend, not a ripple)
+  const k = targetPx / rms;
+  const dx = new Int16Array(n);
+  const dy = new Int16Array(n);
+  const lim = 2.4 * (w / 900) * 256;
+  for (let i = 0; i < n; i++) {
+    dx[i] = Math.max(-lim, Math.min(lim, Math.round(gx[i] * k * 256)));
+    dy[i] = Math.max(-lim, Math.min(lim, Math.round(gy[i] * k * 256)));
+  }
+  return { shade, dx, dy };
+}
 
-  maskCache.set(key, mask);
-  return mask;
+/** Loads photo + its own silhouette mask + fold maps for one side/colour family. */
+export async function prepareShirtAssets(
+  side: ShirtSide,
+  useBlackPhoto: boolean,
+  width: number,
+  height: number
+): Promise<ShirtRenderAssets> {
+  const key = `${useBlackPhoto ? 'black' : 'white'}_${side}` as keyof typeof TSHIRT_ASSETS;
+  const [baseImg, mask] = await Promise.all([
+    getCachedImage(TSHIRT_ASSETS[key]),
+    getMaskAlpha(MASK_ASSETS[key], width, height)
+  ]);
+  const foldKey = `${key}_${width}_${height}`;
+  let fold = foldCache.get(foldKey);
+  if (!fold) {
+    fold = buildFoldMaps(baseImg, mask, width, height);
+    foldCache.set(foldKey, fold);
+  }
+  return { baseImg, mask, fold };
 }
 
 /**
@@ -142,15 +270,15 @@ export function createFabricTexturePattern(
 }
 
 /**
- * Draws the 2D studio t-shirt with guaranteed studio background preservation,
- * mask-based realistic dye synthesis for ALL colors, authentic cloth folds, and clipped graphic.
+ * Draws the 2D studio t-shirt using the photo's OWN silhouette mask (clean edges,
+ * no photo shadow / backdrop), dyes it for any colour, and prints the graphic so
+ * that it follows the cloth folds and is clipped to the garment.
  */
 export function renderRealisticTshirt(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  baseImg: HTMLImageElement,
-  maskImg: HTMLImageElement,
+  assets: ShirtRenderAssets,
   color: TshirtColor,
   fabric: FabricInfo,
   transparentBg = false,
@@ -159,141 +287,261 @@ export function renderRealisticTshirt(
   graphicImg?: HTMLImageElement | null,
   technique?: PrintTechniqueInfo | null
 ) {
-  // Offscreen buffer for crisp rendering
+  const { baseImg, mask } = assets;
+
   const buffer = document.createElement('canvas');
   buffer.width = width;
   buffer.height = height;
-  const bctx = buffer.getContext('2d')!;
+  const bctx = buffer.getContext('2d', { willReadFrequently: true })!;
 
   const isBlack = color.id === 'black';
   const isWhite = color.id === 'white' || color.id === 'broken_white';
 
-  const isLightBg = bgColor === 'white';
-  const bgR = isLightBg ? 255 : 9;
-  const bgG = isLightBg ? 255 : 9;
-  const bgB = isLightBg ? 255 : 11;
+  bctx.drawImage(baseImg, 0, 0, width, height);
+  const imgData = bctx.getImageData(0, 0, width, height);
+  const data = imgData.data;
+  const totalPixels = width * height;
 
-  if (isBlack) {
-    // 1. JET BLACK NATIVE PHOTO
-    bctx.drawImage(baseImg, 0, 0, width, height);
+  const hex = color.hex.replace('#', '');
+  const targetR = parseInt(hex.substring(0, 2), 16);
+  const targetG = parseInt(hex.substring(2, 4), 16);
+  const targetB = parseInt(hex.substring(4, 6), 16);
 
-    if (bgColor === 'black') {
-      const imgData = bctx.getImageData(0, 0, width, height);
-      const data = imgData.data;
-      for (let i = 0; i < data.length; i += 4) {
-        const lum = (data[i] + data[i + 1] + data[i + 2]) / 3;
-        if (lum > 220) {
-          data[i] = 9;
-          data[i + 1] = 9;
-          data[i + 2] = 11;
-        }
-      }
-      bctx.putImageData(imgData, 0, 0);
+  for (let idx = 0; idx < totalPixels; idx++) {
+    const p = idx * 4;
+    const m = mask[idx];
+    if (m === 0) {
+      data[p + 3] = 0;
+      continue;
     }
-  } else {
-    // 2. WHITE OR ANY CUSTOM COLOR (Mustard, Sage Green, Royal Blue, Terracotta, Navy, Maroon, etc.)
-    // First, obtain razor-sharp garment silhouette mask
-    const mask = getGarmentMask(maskImg, width, height);
 
-    // Read base white image containing natural cotton drape & fold shadows
-    bctx.drawImage(baseImg, 0, 0, width, height);
-    const imgData = bctx.getImageData(0, 0, width, height);
-    const data = imgData.data;
-
-    const hex = color.hex.replace('#', '');
-    const targetR = parseInt(hex.substring(0, 2), 16);
-    const targetG = parseInt(hex.substring(2, 4), 16);
-    const targetB = parseInt(hex.substring(4, 6), 16);
-
-    const totalPixels = width * height;
-
-    for (let idx = 0; idx < totalPixels; idx++) {
-      const m = mask[idx];
-      const p = idx * 4;
-
-      if (m === 0) {
-        // PURE STUDIO BACKGROUND: GUARANTEED TO NEVER DYE OR LEACH COLOR!
-        data[p] = bgR;
-        data[p + 1] = bgG;
-        data[p + 2] = bgB;
+    if (!isBlack) {
+      const baseLum = data[p] * 0.299 + data[p + 1] * 0.587 + data[p + 2] * 0.114;
+      const foldIntensity = Math.min(1.0, Math.pow(baseLum / 225, 0.9));
+      if (isWhite) {
+        const k = 0.15 + 0.85 * foldIntensity;
+        data[p] = Math.min(255, Math.round(targetR * k));
+        data[p + 1] = Math.min(255, Math.round(targetG * k));
+        data[p + 2] = Math.min(255, Math.round(targetB * k));
       } else {
-        // GARMENT PIXEL: Dye with natural cotton fold shadows
-        const baseLum = (data[p] * 0.299 + data[p + 1] * 0.587 + data[p + 2] * 0.114);
-        // Normalize fold intensity relative to white cotton highlights
-        const foldIntensity = Math.min(1.0, Math.pow(baseLum / 225, 0.90));
         const sheen = fabric.sheen * Math.pow(foldIntensity, 3) * 35;
-
-        let garR: number, garG: number, garB: number;
-
-        if (isWhite) {
-          // Pure / Broken White
-          garR = Math.min(255, Math.round(targetR * (0.15 + 0.85 * foldIntensity)));
-          garG = Math.min(255, Math.round(targetG * (0.15 + 0.85 * foldIntensity)));
-          garB = Math.min(255, Math.round(targetB * (0.15 + 0.85 * foldIntensity)));
-        } else {
-          // Vibrant Colored Garment (Mustard, Blue, Terracotta, Olive, etc.)
-          garR = Math.min(255, Math.round(targetR * foldIntensity + sheen));
-          garG = Math.min(255, Math.round(targetG * foldIntensity + sheen));
-          garB = Math.min(255, Math.round(targetB * foldIntensity + sheen));
-        }
-
-        if (m === 255) {
-          data[p] = garR;
-          data[p + 1] = garG;
-          data[p + 2] = garB;
-        } else {
-          // Smooth anti-aliased edge transition between garment and solid background
-          const alpha = m / 255;
-          data[p] = Math.round(garR * alpha + bgR * (1 - alpha));
-          data[p + 1] = Math.round(garG * alpha + bgG * (1 - alpha));
-          data[p + 2] = Math.round(garB * alpha + bgB * (1 - alpha));
-        }
+        data[p] = Math.min(255, Math.round(targetR * foldIntensity + sheen));
+        data[p + 1] = Math.min(255, Math.round(targetG * foldIntensity + sheen));
+        data[p + 2] = Math.min(255, Math.round(targetB * foldIntensity + sheen));
       }
     }
-    bctx.putImageData(imgData, 0, 0);
+    data[p + 3] = m; // silhouette becomes the alpha channel
   }
+  bctx.putImageData(imgData, 0, 0);
 
-  // 3. Apply subtle fabric weave micro-texture
-  const patternCanvas = createFabricTexturePattern(fabric, color);
-  const pattern = bctx.createPattern(patternCanvas, 'repeat');
+  // Subtle fabric weave, only where the garment exists
+  const pattern = bctx.createPattern(createFabricTexturePattern(fabric, color), 'repeat');
   if (pattern) {
     bctx.save();
+    bctx.globalCompositeOperation = 'source-atop';
     bctx.globalAlpha = isBlack ? 0.04 : 0.08;
     bctx.fillStyle = pattern;
     bctx.fillRect(0, 0, width, height);
     bctx.restore();
   }
 
-  // 4. Render print graphic with strict boundary clipping
+  // Print graphic: warped by cloth folds, shaded, clipped to the garment
   if (graphic && graphicImg && technique) {
-    bctx.save();
-    bctx.beginPath();
-    bctx.rect(width * 0.15, height * 0.18, width * 0.70, height * 0.70);
-    bctx.clip();
-
-    renderPrintGraphic(bctx, width, height, graphicImg, graphic, technique, fabric, color);
-    bctx.restore();
+    drawWarpedPrint(bctx, width, height, graphicImg, graphic, technique, fabric, color, assets);
   }
 
-  // 5. Output to target canvas
   if (!transparentBg) {
     ctx.fillStyle = bgColor === 'white' ? '#FFFFFF' : '#09090b';
     ctx.fillRect(0, 0, width, height);
     ctx.drawImage(buffer, 0, 0);
   } else {
-    // Transparent for AR virtual try-on
-    const mask = getGarmentMask(maskImg, width, height);
-    const imgData = bctx.getImageData(0, 0, width, height);
-    const data = imgData.data;
-    for (let idx = 0; idx < width * height; idx++) {
-      if (mask[idx] === 0) {
-        data[idx * 4 + 3] = 0;
-      }
-    }
-    bctx.putImageData(imgData, 0, 0);
     ctx.clearRect(0, 0, width, height);
     ctx.drawImage(buffer, 0, 0);
   }
+}
+
+/** How strongly the cloth shading modulates the print, per technique. */
+function printShadeStrength(technique: PrintTechniqueInfo): number {
+  switch (technique.id) {
+    case 'plastisol': return 0.9;
+    case 'dtf': return 1.2;
+    default: return 1.5;
+  }
+}
+
+/**
+ * Renders the print on its own layer, then re-samples it through the garment's
+ * fold displacement map + brightness map, and clips it with the silhouette mask.
+ * Result: the artwork bends with wrinkles, darkens in folds, never leaves the shirt.
+ */
+function drawWarpedPrint(
+  target: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  graphicImg: HTMLImageElement,
+  graphic: GraphicSettings,
+  technique: PrintTechniqueInfo,
+  fabric: FabricInfo,
+  color: TshirtColor,
+  assets: ShirtRenderAssets
+) {
+  const layer = document.createElement('canvas');
+  layer.width = width;
+  layer.height = height;
+  const lctx = layer.getContext('2d', { willReadFrequently: true })!;
+  renderPrintGraphic(lctx, width, height, graphicImg, graphic, technique, fabric, color);
+
+  const { cx, cy, printW, printH } = getPrintPlacement(width, height, graphicImg, graphic);
+  const r = Math.ceil(Math.hypot(printW, printH) / 2 + 12);
+  const x0 = Math.max(0, Math.floor(cx - r));
+  const y0 = Math.max(0, Math.floor(cy - r));
+  const x1 = Math.min(width, Math.ceil(cx + r));
+  const y1 = Math.min(height, Math.ceil(cy + r));
+  const bw = x1 - x0;
+  const bh = y1 - y0;
+  if (bw <= 0 || bh <= 0) return;
+
+  const src = lctx.getImageData(x0, y0, bw, bh).data;
+  const out = new ImageData(bw, bh);
+  const od = out.data;
+  const { mask, fold } = assets;
+  const strength = printShadeStrength(technique);
+
+  for (let j = 0; j < bh; j++) {
+    const gRow = (y0 + j) * width + x0;
+    for (let i = 0; i < bw; i++) {
+      const gi = gRow + i;
+      const m = mask[gi];
+      if (m === 0) continue;
+
+      // Bilinear sample of the print layer at the fold-displaced position
+      const fx = i + fold.dx[gi] / 256;
+      const fy = j + fold.dy[gi] / 256;
+      const ix = Math.floor(fx);
+      const iy = Math.floor(fy);
+      const tx = fx - ix;
+      const ty = fy - iy;
+
+      let accA = 0;
+      let accR = 0;
+      let accG = 0;
+      let accB = 0;
+      for (let q = 0; q < 4; q++) {
+        const qx = ix + (q & 1);
+        const qy = iy + (q >> 1);
+        if (qx < 0 || qy < 0 || qx >= bw || qy >= bh) continue;
+        const wgt = ((q & 1) ? tx : 1 - tx) * ((q >> 1) ? ty : 1 - ty);
+        const sp = (qy * bw + qx) * 4;
+        const wa = wgt * src[sp + 3];
+        accA += wa;
+        accR += wa * src[sp];
+        accG += wa * src[sp + 1];
+        accB += wa * src[sp + 2];
+      }
+      if (accA < 0.5) continue;
+
+      let f = 1 + (strength * fold.shade[gi]) / 1000;
+      f = f < 0.55 ? 0.55 : f > 1.25 ? 1.25 : f;
+
+      const o = (j * bw + i) * 4;
+      od[o] = Math.min(255, (accR / accA) * f);
+      od[o + 1] = Math.min(255, (accG / accA) * f);
+      od[o + 2] = Math.min(255, (accB / accA) * f);
+      od[o + 3] = (accA * m) / 255;
+    }
+  }
+
+  const tmp = document.createElement('canvas');
+  tmp.width = bw;
+  tmp.height = bh;
+  tmp.getContext('2d')!.putImageData(out, 0, 0);
+  target.drawImage(tmp, x0, y0);
+}
+
+/** Shared placement math (2D photo space) for the print. */
+function getPrintPlacement(
+  width: number,
+  height: number,
+  graphicImg: HTMLImageElement,
+  graphic: GraphicSettings
+) {
+  const isSleeve = graphic.side === 'sleeve_left' || graphic.side === 'sleeve_right';
+  // On the front photo the wearer's left sleeve is on the image's right
+  const dir = graphic.side === 'sleeve_left' ? 1 : -1;
+
+  const cx = isSleeve
+    ? width * (0.5 + dir * 0.335) + (graphic.x / 100) * width * 0.1
+    : width * 0.5 + (graphic.x / 100) * (width * 0.4);
+  const cy = isSleeve
+    ? height * 0.31 + (graphic.y / 100) * height * 0.1
+    : height * 0.48 + (graphic.y / 100) * (height * 0.4);
+
+  const baseDim = width * (isSleeve ? 0.15 : 0.38);
+  const printW = baseDim * graphic.scale;
+  const aspect = graphicImg.height / (graphicImg.width || 1);
+  const printH = printW * aspect;
+  const extraRot = isSleeve ? dir * 35 : 0;
+  return { cx, cy, printW, printH, extraRot, isSleeve };
+}
+
+/**
+ * Renders a transparent-background, tightly-cropped shirt (with print) for the AR
+ * overlay, so the camera feed is never covered by a studio backdrop.
+ */
+export async function renderShirtCutout(
+  fabric: FabricInfo,
+  color: TshirtColor,
+  graphic: GraphicSettings,
+  technique: PrintTechniqueInfo,
+  side: ShirtSide,
+  size = 900
+): Promise<HTMLCanvasElement> {
+  const assets = await prepareShirtAssets(side, color.id === 'black', size, size);
+
+  let graphicImg: HTMLImageElement | null = null;
+  const printsOnThisView =
+    graphic.imageUrl &&
+    (graphic.side === side ||
+      (side === 'front' && (graphic.side === 'sleeve_left' || graphic.side === 'sleeve_right')));
+  if (printsOnThisView) {
+    try {
+      graphicImg = await getCachedImage(graphic.imageUrl);
+    } catch (e) {
+      console.error('Failed to load graphic image:', e);
+    }
+  }
+
+  const full = document.createElement('canvas');
+  full.width = size;
+  full.height = size;
+  renderRealisticTshirt(
+    full.getContext('2d')!, size, size, assets, color, fabric, true, 'white', graphic, graphicImg, technique
+  );
+
+  // Crop to the garment bounds
+  let minX = size, minY = size, maxX = 0, maxY = 0;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      if (assets.mask[y * size + x] > 20) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  const pad = 6;
+  minX = Math.max(0, minX - pad);
+  minY = Math.max(0, minY - pad);
+  maxX = Math.min(size - 1, maxX + pad);
+  maxY = Math.min(size - 1, maxY + pad);
+  const cw = Math.max(1, maxX - minX + 1);
+  const ch = Math.max(1, maxY - minY + 1);
+  const out = document.createElement('canvas');
+  out.width = cw;
+  out.height = ch;
+  out.getContext('2d')!.drawImage(full, minX, minY, cw, ch, 0, 0, cw, ch);
+  return out;
 }
 
 /**
@@ -311,17 +559,11 @@ export function renderPrintGraphic(
 ) {
   ctx.save();
 
-  // Print area center on the t-shirt chest/back
-  const centerX = width * 0.5 + (graphic.x / 100) * (width * 0.40);
-  const centerY = height * 0.48 + (graphic.y / 100) * (height * 0.40);
-
-  const baseDim = width * 0.38;
-  const printWidth = baseDim * graphic.scale;
-  const aspect = graphicImg.height / (graphicImg.width || 1);
-  const printHeight = printWidth * aspect;
+  const { cx: centerX, cy: centerY, printW: printWidth, printH: printHeight, extraRot } =
+    getPrintPlacement(width, height, graphicImg, graphic);
 
   ctx.translate(centerX, centerY);
-  ctx.rotate((graphic.rotation * Math.PI) / 180);
+  ctx.rotate(((graphic.rotation + extraRot) * Math.PI) / 180);
 
   // Technique specific effects
   if (technique.id === 'plastisol') {

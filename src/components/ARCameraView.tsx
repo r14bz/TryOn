@@ -14,13 +14,13 @@ import {
   Layers
 } from 'lucide-react';
 import { FabricInfo, TshirtColor, GraphicSettings, PrintTechniqueInfo } from '../types/sablon';
+import { renderShirtCutout } from '../utils/fabricRenderer';
 
 interface ARCameraViewProps {
   fabric: FabricInfo;
   color: TshirtColor;
   graphic: GraphicSettings;
   technique: PrintTechniqueInfo;
-  renderedTshirtCanvas: HTMLCanvasElement | null;
   onClose: () => void;
 }
 
@@ -29,12 +29,30 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   color,
   graphic,
   technique,
-  renderedTshirtCanvas,
   onClose
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const compositeCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Transparent, garment-only render (no studio backdrop) that sits on top of the camera feed
+  const [shirtCutout, setShirtCutout] = useState<HTMLCanvasElement | null>(null);
+  const [shirtCutoutUrl, setShirtCutoutUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const side = graphic.side === 'back' ? 'back' : 'front';
+    renderShirtCutout(fabric, color, graphic, technique, side)
+      .then((c) => {
+        if (cancelled) return;
+        setShirtCutout(c);
+        setShirtCutoutUrl(c.toDataURL('image/png'));
+      })
+      .catch((e) => console.error('Failed to render AR shirt cutout:', e));
+    return () => {
+      cancelled = true;
+    };
+  }, [fabric, color, graphic, technique]);
 
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -166,10 +184,10 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
     ctx.restore();
 
     // 2. Draw t-shirt overlay in exact screen proportion
-    if (renderedTshirtCanvas) {
+    if (shirtCutout) {
       ctx.save();
-      const shirtW = w * 0.72 * arScale;
-      const shirtH = shirtW * (renderedTshirtCanvas.height / renderedTshirtCanvas.width);
+      const shirtW = w * 0.63 * arScale;
+      const shirtH = shirtW * (shirtCutout.height / shirtCutout.width);
       const posX = (w - shirtW) / 2 + (arOffsetX / 100) * w;
       const posY = (h - shirtH) / 2 + (arOffsetY / 100) * h;
 
@@ -177,7 +195,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       ctx.globalCompositeOperation = arBlendMode === 'normal' ? 'source-over' : (arBlendMode as GlobalCompositeOperation);
       ctx.filter = `brightness(${ambientLightBoost * 100}%)`;
 
-      ctx.drawImage(renderedTshirtCanvas, posX, posY, shirtW, shirtH);
+      ctx.drawImage(shirtCutout, posX, posY, shirtW, shirtH);
       ctx.restore();
     }
 
@@ -326,24 +344,24 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
         )}
 
         {/* Rendered T-Shirt AR Overlay */}
-        {renderedTshirtCanvas && (
+        {shirtCutout && shirtCutoutUrl && (
           <div
             style={{
               position: 'absolute',
               transform: `translate(${arOffsetX}%, ${arOffsetY}%) scale(${arScale}) rotateX(${arTiltX}deg)`,
               transformOrigin: 'center center',
-              width: 'min(78vw, 460px)',
-              aspectRatio: `${renderedTshirtCanvas.width} / ${renderedTshirtCanvas.height}`,
+              width: 'min(68vw, 400px)',
+              aspectRatio: `${shirtCutout.width} / ${shirtCutout.height}`,
               opacity: arOpacity,
               mixBlendMode: arBlendMode,
-              filter: `brightness(${ambientLightBoost}) drop-shadow(0 20px 30px rgba(0,0,0,0.5))`,
+              filter: `brightness(${ambientLightBoost})`,
               pointerEvents: 'none',
               transition: isDragging ? 'none' : 'transform 0.12s ease-out'
             }}
             className="flex items-center justify-center"
           >
             <img
-              src={renderedTshirtCanvas.toDataURL()}
+              src={shirtCutoutUrl}
               alt="AR T-Shirt Preview"
               className="w-full h-full object-contain pointer-events-none"
             />

@@ -20,7 +20,7 @@ import {
 import { 
   getCachedImage, 
   renderRealisticTshirt,
-  TSHIRT_ASSETS
+  prepareShirtAssets
 } from '../utils/fabricRenderer';
 
 interface StudioMockupProps {
@@ -71,7 +71,10 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
     startY: 0
   });
 
+  const renderIdRef = useRef(0);
+
   const drawMockup = useCallback(async () => {
+    const renderId = ++renderIdRef.current;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -82,17 +85,9 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
       const width = canvas.width;
       const height = canvas.height;
 
-      const isBlack = color.id === 'black';
-      const maskImgUrl = currentSide === 'back' ? TSHIRT_ASSETS.black_back : TSHIRT_ASSETS.black_front;
-      const baseImgUrl = isBlack 
-        ? maskImgUrl 
-        : (currentSide === 'back' ? TSHIRT_ASSETS.white_back : TSHIRT_ASSETS.white_front);
-
-      // Load base image and mask in parallel
-      const [baseImg, maskImg] = await Promise.all([
-        getCachedImage(baseImgUrl),
-        getCachedImage(maskImgUrl)
-      ]);
+      const side = currentSide === 'back' ? 'back' : 'front';
+      // Photo + its own silhouette mask + cloth-fold maps (black uses the black photo)
+      const assets = await prepareShirtAssets(side, color.id === 'black', width, height);
 
       let graphicImg: HTMLImageElement | null = null;
       const isGraphicForThisSide = graphic.imageUrl && (
@@ -108,13 +103,15 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
         }
       }
 
+      // A newer render started while assets were loading: drop this one
+      if (renderId !== renderIdRef.current) return;
+
       // Render realistic 2D catalog photo with guaranteed pure studio background
       renderRealisticTshirt(
         ctx, 
         width, 
         height, 
-        baseImg, 
-        maskImg,
+        assets,
         color, 
         fabric, 
         false, 
