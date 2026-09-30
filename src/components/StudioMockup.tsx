@@ -18,7 +18,11 @@ import {
   StudioBgColor
 } from '../types/sablon';
 import { 
-  getCachedImage, 
+  PrintLayer,
+  BODY_DRAG_RANGE,
+  SLEEVE_DRAG_RANGE,
+  hitTestLayer,
+  loadPrintLayers,
   renderRealisticTshirt,
   prepareShirtAssets
 } from '../utils/fabricRenderer';
@@ -26,7 +30,8 @@ import {
 interface StudioMockupProps {
   fabric: FabricInfo;
   color: TshirtColor;
-  graphic: GraphicSettings;
+  graphics: GraphicSettings[];
+  activeGraphic: GraphicSettings | null;
   technique: PrintTechniqueInfo;
   currentSide: PlacementSide;
   garmentSize: GarmentSize;
@@ -34,8 +39,8 @@ interface StudioMockupProps {
   onSideChange: (side: PlacementSide) => void;
   onGraphicChange: (updated: Partial<GraphicSettings>) => void;
   onStudioBgChange?: (bg: StudioBgColor) => void;
+  onSelectGraphic: (id: string) => void;
   onCanvasRendered?: (canvas: HTMLCanvasElement) => void;
-  onOpenAR: () => void;
   onOpenInspect: () => void;
   onSwitchTo3D?: () => void;
 }
@@ -43,7 +48,8 @@ interface StudioMockupProps {
 export const StudioMockup: React.FC<StudioMockupProps> = ({
   fabric,
   color,
-  graphic,
+  graphics,
+  activeGraphic,
   technique,
   currentSide,
   garmentSize,
@@ -51,11 +57,15 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
   onSideChange,
   onGraphicChange,
   onStudioBgChange,
+  onSelectGraphic,
   onCanvasRendered,
-  onOpenAR,
   onOpenInspect,
   onSwitchTo3D
 }) => {
+  // The layer being edited by sliders / drag (may be null when there are no layers)
+  const graphic = activeGraphic;
+  // Layers currently drawn on the canvas (used to pick a layer by tapping it)
+  const layersRef = useRef<PrintLayer[]>([]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -72,6 +82,7 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
   });
 
   const renderIdRef = useRef(0);
+  const dragRangeRef = useRef(BODY_DRAG_RANGE);
 
   const drawMockup = useCallback(async () => {
     const renderId = ++renderIdRef.current;
@@ -89,19 +100,7 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
       // Photo + its own silhouette mask + cloth-fold maps (black uses the black photo)
       const assets = await prepareShirtAssets(side, color.id === 'black', width, height);
 
-      let graphicImg: HTMLImageElement | null = null;
-      const isGraphicForThisSide = graphic.imageUrl && (
-        graphic.side === currentSide || 
-        (currentSide === 'front' && (graphic.side === 'sleeve_left' || graphic.side === 'sleeve_right'))
-      );
-
-      if (isGraphicForThisSide) {
-        try {
-          graphicImg = await getCachedImage(graphic.imageUrl);
-        } catch (e) {
-          console.error('Failed to load graphic image:', e);
-        }
-      }
+      const layers = await loadPrintLayers(graphics, side);
 
       // A newer render started while assets were loading: drop this one
       if (renderId !== renderIdRef.current) return;
@@ -116,10 +115,10 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
         fabric, 
         false, 
         studioBgColor, 
-        graphic, 
-        graphicImg, 
+        layers, 
         technique
       );
+      layersRef.current = layers;
 
       if (onCanvasRendered) {
         onCanvasRendered(canvas);
@@ -129,7 +128,7 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
       console.error('Mockup render error:', err);
       setIsLoading(false);
     }
-  }, [fabric, color, graphic, technique, currentSide, studioBgColor, onCanvasRendered]);
+  }, [fabric, color, graphics, technique, currentSide, studioBgColor, onCanvasRendered]);
 
   useEffect(() => {
     drawMockup();
@@ -139,31 +138,41 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // Tap on a print to select that layer (top-most wins)
+    const rect = canvas.getBoundingClientRect();
+    const cx = ((e.clientX - rect.left) / rect.width) * canvas.width;
+    const cy = ((e.clientY - rect.top) / rect.height) * canvas.height;
+    const hitId = hitTestLayer(cx, cy, canvas.width, canvas.height, layersRef.current);
+    const target = hitId ? graphics.find((g) => g.id === hitId) ?? null : graphic;
+    if (hitId && hitId !== graphic?.id) onSelectGraphic(hitId);
+    if (!target) return;
+
     e.currentTarget.setPointerCapture(e.pointerId);
     setIsDragging(true);
     dragStartRef.current = {
       mouseX: e.clientX,
       mouseY: e.clientY,
-      startX: graphic.x,
-      startY: graphic.y
+      startX: target.x,
+      startY: target.y
     };
+    dragRangeRef.current =
+      target.side === 'sleeve_left' || target.side === 'sleeve_right' ? SLEEVE_DRAG_RANGE : BODY_DRAG_RANGE;
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !isDragging) return;
     const rect = canvas.getBoundingClientRect();
 
-    if (!isDragging) return;
+    // Pointer travel as a fraction of the canvas, converted to the slider unit
+    // (placement moves by `range` of the canvas width per 100 units), so the
+    // print follows the finger 1:1.
+    const range = dragRangeRef.current;
+    const dx = (e.clientX - dragStartRef.current.mouseX) / rect.width;
+    const dy = (e.clientY - dragStartRef.current.mouseY) / rect.height;
 
-    const dx = e.clientX - dragStartRef.current.mouseX;
-    const dy = e.clientY - dragStartRef.current.mouseY;
-
-    const scaleFactorX = (100 / rect.width);
-    const scaleFactorY = (100 / rect.height);
-
-    const newX = Math.max(-50, Math.min(50, dragStartRef.current.startX + dx * scaleFactorX));
-    const newY = Math.max(-50, Math.min(50, dragStartRef.current.startY + dy * scaleFactorY));
+    const newX = Math.max(-50, Math.min(50, dragStartRef.current.startX + (dx * 100) / range));
+    const newY = Math.max(-50, Math.min(50, dragStartRef.current.startY + (dy * 100) / range));
 
     onGraphicChange({ x: newX, y: newY, preset: 'custom' });
   };
@@ -205,6 +214,7 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
       </div>
 
       {/* FLOATING ON-CANVAS SLIDERS: ALWAYS VISIBLE EVEN WHEN BOTTOM PANEL IS CLOSED */}
+      {graphic && (
       <div className="absolute bottom-2 left-2 right-14 sm:left-4 sm:right-16 z-20 pointer-events-auto">
         <div className="bg-zinc-950/95 border border-zinc-800 text-zinc-200 p-2.5 rounded-2xl shadow-2xl backdrop-blur-md max-w-sm mx-auto">
           <div className="flex items-center justify-between pb-1.5 border-b border-zinc-850 text-xs">
@@ -329,6 +339,8 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
         </div>
       </div>
 
+      )}
+
       {/* Floating Right Control Strip (Zoom & Reset) */}
       <div className={`absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1.5 p-1 rounded-xl shadow-xl border backdrop-blur ${
         studioBgColor === 'white' ? 'bg-white/95 border-zinc-200 text-zinc-700' : 'bg-zinc-900/95 border-zinc-800 text-zinc-300'
@@ -354,7 +366,7 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
         <button
           onClick={() => {
             setViewZoom(1.0);
-            onGraphicChange({ x: 0, y: currentSide === 'front' ? 2 : 0, preset: 'custom' });
+            if (graphic) onGraphicChange({ x: 0, y: graphic.side === 'front' ? 2 : 0, preset: 'custom' });
           }}
           title="Reset Tampilan ke Posisi Normal"
           className="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors touch-manipulation"

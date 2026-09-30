@@ -5,7 +5,7 @@ import { FabricInfo, TshirtColor, GraphicSettings, PrintTechniqueInfo, GarmentSi
 interface PriceQuoteModalProps {
   fabric: FabricInfo;
   color: TshirtColor;
-  graphic: GraphicSettings;
+  graphics: GraphicSettings[];
   technique: PrintTechniqueInfo;
   size: GarmentSize;
   renderedCanvas: HTMLCanvasElement | null;
@@ -15,7 +15,7 @@ interface PriceQuoteModalProps {
 export const PriceQuoteModal: React.FC<PriceQuoteModalProps> = ({
   fabric,
   color,
-  graphic,
+  graphics,
   technique,
   size,
   renderedCanvas,
@@ -28,9 +28,12 @@ export const PriceQuoteModal: React.FC<PriceQuoteModalProps> = ({
   const baseTshirtPrice = fabric.basePrice;
   const basePrintPrice = technique.costModifier;
   
-  // Size modifier (e.g. A3 has higher ink volume than pocket)
-  const sizeMultiplier = graphic.scale > 1.2 ? 1.4 : graphic.scale > 0.8 ? 1.2 : 1.0;
-  const printCostPerPcs = Math.round(basePrintPrice * sizeMultiplier);
+  // Every visible print is charged on its own (A3 has higher ink volume than a pocket print)
+  const printed = graphics.filter((g) => g.visible && g.imageUrl);
+  const sizeMultiplierOf = (scale: number) => (scale > 1.2 ? 1.4 : scale > 0.8 ? 1.2 : 1.0);
+  const printCostPerPcs = Math.round(
+    printed.reduce((sum, g) => sum + basePrintPrice * sizeMultiplierOf(g.scale), 0)
+  );
 
   // Bulk discount
   let discountPct = 0;
@@ -42,8 +45,9 @@ export const PriceQuoteModal: React.FC<PriceQuoteModalProps> = ({
   const unitPrice = Math.round(unitPriceBeforeDiscount * (1 - discountPct));
   const subtotal = unitPrice * quantity;
 
-  const printWidthCm = (graphic.scale * 21).toFixed(1);
-  const printHeightCm = (graphic.scale * 28).toFixed(1);
+  const largestScale = printed.reduce((m, g) => Math.max(m, g.scale), 0);
+  const printWidthCm = (largestScale * 21).toFixed(1);
+  const printHeightCm = (largestScale * 28).toFixed(1);
 
   // Generate & Download Spec Sheet PNG
   const downloadSpecSheet = () => {
@@ -93,7 +97,7 @@ export const PriceQuoteModal: React.FC<PriceQuoteModalProps> = ({
 
     ctx.fillStyle = '#A1A1AA';
     ctx.font = '16px "JetBrains Mono", monospace';
-    ctx.fillText('SablonAR Studio Production Sheet · Real-Time AR Verified', 60, 110);
+    ctx.fillText('Sablon Studio Production Sheet', 60, 110);
 
     // 4. Right Side Specs Panel
     const rx = 620;
@@ -120,15 +124,18 @@ export const PriceQuoteModal: React.FC<PriceQuoteModalProps> = ({
     drawSpecRow('Bahan Kaos Polos', `${fabric.name} (${fabric.gsm})`);
     drawSpecRow('Warna Kaos', `${color.name} [HEX: ${color.hex.toUpperCase()}]`);
     drawSpecRow('Teknologi Sablon', `${technique.name} (${technique.tagline})`);
-    drawSpecRow('Dimensi Ukuran Cetak', `${printWidthCm} cm × ${printHeightCm} cm (${graphic.preset.toUpperCase()})`);
-    const sideLabel = graphic.side === 'front' 
-      ? 'Tampak Depan (Front)' 
-      : graphic.side === 'back' 
-      ? 'Tampak Belakang (Back)' 
-      : graphic.side === 'sleeve_left' 
-      ? 'Lengan Kiri (Left Sleeve)' 
-      : 'Lengan Kanan (Right Sleeve)';
-    drawSpecRow('Posisi / Sisi Kaos', sideLabel);
+    drawSpecRow(
+      'Jumlah Gambar Sablon',
+      printed.length === 0 ? 'Tanpa sablon' : `${printed.length} gambar (terbesar ${printWidthCm} × ${printHeightCm} cm)`
+    );
+    const sideLabels: Record<string, string> = {
+      front: 'Depan',
+      back: 'Belakang',
+      sleeve_left: 'Lengan Kiri',
+      sleeve_right: 'Lengan Kanan'
+    };
+    const sidesUsed = Array.from(new Set(printed.map((g) => sideLabels[g.side])));
+    drawSpecRow('Posisi / Sisi Kaos', sidesUsed.length ? sidesUsed.join(', ') : '-');
     drawSpecRow('Estimasi Biaya Satuan', `Rp ${unitPrice.toLocaleString('id-ID')} / pcs (Qty: ${quantity} pcs)`, true);
     drawSpecRow('Total Estimasi Produksi', `Rp ${subtotal.toLocaleString('id-ID')} (Diskon: ${discountPct * 100}%)`, true);
 

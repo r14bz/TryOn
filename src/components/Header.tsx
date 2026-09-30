@@ -1,8 +1,8 @@
 import React from 'react';
-import { Sparkles, Calculator, HelpCircle, Layers } from 'lucide-react';
+import { Download, Calculator } from 'lucide-react';
 
 interface HeaderProps {
-  onOpenAR: () => void;
+  onOpenExport: () => void;
   onOpenQuote: () => void;
   onOpenTextureModal: () => void;
   activeSidebarTab: 'graphic' | 'fabric' | 'technique';
@@ -10,7 +10,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  onOpenAR,
+  onOpenExport,
   onOpenQuote,
   onOpenTextureModal,
   activeSidebarTab,
@@ -22,7 +22,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center gap-2.5 min-w-0">
         <a href="/" className="text-base sm:text-lg font-bold tracking-tight text-white font-display flex items-center gap-2 truncate">
           <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
-          <span className="truncate">SablonAR Studio</span>
+          <span className="truncate">Sablon Studio</span>
         </a>
       </div>
 
@@ -72,11 +72,11 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         <button
-          onClick={onOpenAR}
+          onClick={onOpenExport}
           className="h-9 px-3.5 sm:px-4 text-xs font-semibold text-zinc-950 bg-amber-400 hover:bg-amber-300 rounded-lg shadow-sm active:scale-95 transition-all whitespace-nowrap flex items-center gap-1.5 touch-manipulation"
         >
-          <Sparkles className="w-3.5 h-3.5 shrink-0" />
-          <span>Live AR</span>
+          <Download className="w-3.5 h-3.5 shrink-0" />
+          <span>Simpan Gambar</span>
         </button>
       </div>
     </header>

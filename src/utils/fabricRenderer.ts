@@ -269,10 +269,152 @@ export function createFabricTexturePattern(
   return patternCanvas;
 }
 
+// ---------------------------------------------------------------------------
+// Artwork helpers: cache lookup + colour filters that do NOT rely on
+// CanvasRenderingContext2D.filter (unsupported on Safari/iOS).
+// ---------------------------------------------------------------------------
+
+/** Returns an already-loaded image synchronously (or null). */
+export function peekCachedImage(src: string): HTMLImageElement | null {
+  return imageCache.get(src) ?? null;
+}
+
+/** Drops a cached image (call when a layer is deleted). */
+export function forgetCachedImage(src: string) {
+  imageCache.delete(src);
+}
+
+type ColorFilterId = GraphicSettings['colorFilter'];
+
+function applyFilterPixels(data: Uint8ClampedArray, filter: ColorFilterId) {
+  const n = data.length;
+  if (filter === 'monochrome_black') {
+    for (let i = 0; i < n; i += 4) {
+      data[i] = 0;
+      data[i + 1] = 0;
+      data[i + 2] = 0;
+    }
+    return;
+  }
+  if (filter === 'monochrome_white') {
+    // brightness(200%) then grayscale(100%)
+    for (let i = 0; i < n; i += 4) {
+      const r = Math.min(255, data[i] * 2);
+      const g = Math.min(255, data[i + 1] * 2);
+      const b = Math.min(255, data[i + 2] * 2);
+      const gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      data[i] = gray;
+      data[i + 1] = gray;
+      data[i + 2] = gray;
+    }
+    return;
+  }
+  if (filter === 'vintage_warm') {
+    // sepia(40%) -> contrast(90%) -> brightness(95%)
+    const k = 1 - 0.4;
+    const m00 = 0.393 + 0.607 * k, m01 = 0.769 - 0.769 * k, m02 = 0.189 - 0.189 * k;
+    const m10 = 0.349 - 0.349 * k, m11 = 0.686 + 0.314 * k, m12 = 0.168 - 0.168 * k;
+    const m20 = 0.272 - 0.272 * k, m21 = 0.534 - 0.534 * k, m22 = 0.131 + 0.869 * k;
+    const fin = (v: number) => {
+      const c = Math.max(0, Math.min(255, v));
+      return ((c - 127.5) * 0.9 + 127.5) * 0.95;
+    };
+    for (let i = 0; i < n; i += 4) {
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      data[i] = fin(m00 * r + m01 * g + m02 * b);
+      data[i + 1] = fin(m10 * r + m11 * g + m12 * b);
+      data[i + 2] = fin(m20 * r + m21 * g + m22 * b);
+    }
+  }
+}
+
+const filteredCache = new WeakMap<HTMLImageElement, Map<string, HTMLCanvasElement>>();
+
+/**
+ * Artwork with the ink filter baked in. 'original' returns the image itself.
+ * `targetW` (px the artwork will be drawn at) lets vector images stay crisp in
+ * high-resolution exports.
+ */
+export function getFilteredSource(
+  img: HTMLImageElement,
+  filter: ColorFilterId,
+  targetW: number
+): CanvasImageSource {
+  if (filter === 'original') return img;
+
+  const natW = img.naturalWidth || img.width || 500;
+  const natH = img.naturalHeight || img.height || 500;
+  const buckets = [512, 1024, 2048, 4096];
+  const bucket = buckets.find((b) => b >= targetW) ?? 4096;
+  const w = Math.max(16, Math.min(bucket, natW * 8));
+  const h = Math.max(16, Math.round(w * (natH / natW)));
+
+  const key = `${filter}_${w}`;
+  let perImg = filteredCache.get(img);
+  if (!perImg) {
+    perImg = new Map();
+    filteredCache.set(img, perImg);
+  }
+  const hit = perImg.get(key);
+  if (hit) return hit;
+
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const cx = c.getContext('2d', { willReadFrequently: true })!;
+  cx.drawImage(img, 0, 0, w, h);
+  const id = cx.getImageData(0, 0, w, h);
+  applyFilterPixels(id.data, filter);
+  cx.putImageData(id, 0, 0);
+  perImg.set(key, c);
+  return c;
+}
+
+// ---------------------------------------------------------------------------
+// Layers
+// ---------------------------------------------------------------------------
+
+export interface PrintLayer {
+  graphic: GraphicSettings;
+  img: HTMLImageElement;
+}
+
+/** Sleeve prints are visible on the front photo, front/back prints on their own side. */
+export function graphicShownOnView(g: GraphicSettings, view: ShirtSide): boolean {
+  if (!g.visible || !g.imageUrl) return false;
+  return (
+    g.side === view ||
+    (view === 'front' && (g.side === 'sleeve_left' || g.side === 'sleeve_right'))
+  );
+}
+
+/** Loads every visible layer for a view, in stacking order (first = bottom). */
+export async function loadPrintLayers(
+  graphics: GraphicSettings[],
+  view: ShirtSide
+): Promise<PrintLayer[]> {
+  const wanted = graphics.filter((g) => graphicShownOnView(g, view));
+  const loaded = await Promise.all(
+    wanted.map(async (g) => {
+      try {
+        return { graphic: g, img: await getCachedImage(g.imageUrl) };
+      } catch (e) {
+        console.error('Failed to load graphic image:', e);
+        return null;
+      }
+    })
+  );
+  return loaded.filter((l): l is PrintLayer => l !== null);
+}
+
 /**
  * Draws the 2D studio t-shirt using the photo's OWN silhouette mask (clean edges,
- * no photo shadow / backdrop), dyes it for any colour, and prints the graphic so
+ * no photo shadow / backdrop), dyes it for any colour, and prints every layer so
  * that it follows the cloth folds and is clipped to the garment.
+ *
+ * `width`/`height` are the size of `assets`; the output canvas must be
+ * `width*outScale` x `height*outScale` (outScale > 1 is used for hi-res export:
+ * the photo is upscaled, but the artwork is re-rendered at full resolution).
  */
 export function renderRealisticTshirt(
   ctx: CanvasRenderingContext2D,
@@ -283,9 +425,9 @@ export function renderRealisticTshirt(
   fabric: FabricInfo,
   transparentBg = false,
   bgColor: StudioBgColor = 'white',
-  graphic?: GraphicSettings | null,
-  graphicImg?: HTMLImageElement | null,
-  technique?: PrintTechniqueInfo | null
+  layers: PrintLayer[] = [],
+  technique?: PrintTechniqueInfo | null,
+  outScale = 1
 ) {
   const { baseImg, mask } = assets;
 
@@ -345,18 +487,24 @@ export function renderRealisticTshirt(
     bctx.restore();
   }
 
-  // Print graphic: warped by cloth folds, shaded, clipped to the garment
-  if (graphic && graphicImg && technique) {
-    drawWarpedPrint(bctx, width, height, graphicImg, graphic, technique, fabric, color, assets);
-  }
+  const outW = Math.round(width * outScale);
+  const outH = Math.round(height * outScale);
 
   if (!transparentBg) {
     ctx.fillStyle = bgColor === 'white' ? '#FFFFFF' : '#09090b';
-    ctx.fillRect(0, 0, width, height);
-    ctx.drawImage(buffer, 0, 0);
+    ctx.fillRect(0, 0, outW, outH);
   } else {
-    ctx.clearRect(0, 0, width, height);
-    ctx.drawImage(buffer, 0, 0);
+    ctx.clearRect(0, 0, outW, outH);
+  }
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(buffer, 0, 0, outW, outH);
+
+  // Print layers: warped by cloth folds, shaded, clipped to the garment
+  if (technique) {
+    for (const layer of layers) {
+      drawWarpedPrint(ctx, width, height, outScale, layer.img, layer.graphic, technique, fabric, color, assets);
+    }
   }
 }
 
@@ -369,15 +517,34 @@ function printShadeStrength(technique: PrintTechniqueInfo): number {
   }
 }
 
+/** Bilinear lookup in a w x h grid (edge-clamped). */
+function bilerp(arr: ArrayLike<number>, w: number, h: number, x: number, y: number): number {
+  const x0 = Math.floor(x);
+  const y0 = Math.floor(y);
+  const tx = x - x0;
+  const ty = y - y0;
+  const xa = x0 < 0 ? 0 : x0 > w - 1 ? w - 1 : x0;
+  const xb = x0 + 1 < 0 ? 0 : x0 + 1 > w - 1 ? w - 1 : x0 + 1;
+  const ya = y0 < 0 ? 0 : y0 > h - 1 ? h - 1 : y0;
+  const yb = y0 + 1 < 0 ? 0 : y0 + 1 > h - 1 ? h - 1 : y0 + 1;
+  const a = arr[ya * w + xa];
+  const b = arr[ya * w + xb];
+  const c = arr[yb * w + xa];
+  const d = arr[yb * w + xb];
+  return (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty;
+}
+
 /**
- * Renders the print on its own layer, then re-samples it through the garment's
+ * Renders one print on its own layer, then re-samples it through the garment's
  * fold displacement map + brightness map, and clips it with the silhouette mask.
  * Result: the artwork bends with wrinkles, darkens in folds, never leaves the shirt.
+ * `s` is the output scale relative to `assets` (1 = screen, 2..4 = export).
  */
 function drawWarpedPrint(
   target: CanvasRenderingContext2D,
-  width: number,
-  height: number,
+  baseW: number,
+  baseH: number,
+  s: number,
   graphicImg: HTMLImageElement,
   graphic: GraphicSettings,
   technique: PrintTechniqueInfo,
@@ -385,14 +552,18 @@ function drawWarpedPrint(
   color: TshirtColor,
   assets: ShirtRenderAssets
 ) {
+  const width = Math.round(baseW * s);
+  const height = Math.round(baseH * s);
+
   const layer = document.createElement('canvas');
   layer.width = width;
   layer.height = height;
   const lctx = layer.getContext('2d', { willReadFrequently: true })!;
-  renderPrintGraphic(lctx, width, height, graphicImg, graphic, technique, fabric, color);
+  renderPrintGraphic(lctx, width, height, graphicImg, graphic, technique, fabric, color, s);
 
-  const { cx, cy, printW, printH } = getPrintPlacement(width, height, graphicImg, graphic);
-  const r = Math.ceil(Math.hypot(printW, printH) / 2 + 12);
+  const aspect = graphicImg.height / (graphicImg.width || 1);
+  const { cx, cy, printW, printH } = getPrintPlacement(width, height, aspect, graphic);
+  const r = Math.ceil(Math.hypot(printW, printH) / 2 + 12 * s);
   const x0 = Math.max(0, Math.floor(cx - r));
   const y0 = Math.max(0, Math.floor(cy - r));
   const x1 = Math.min(width, Math.ceil(cx + r));
@@ -406,17 +577,35 @@ function drawWarpedPrint(
   const od = out.data;
   const { mask, fold } = assets;
   const strength = printShadeStrength(technique);
+  const exact = s === 1;
 
   for (let j = 0; j < bh; j++) {
-    const gRow = (y0 + j) * width + x0;
     for (let i = 0; i < bw; i++) {
-      const gi = gRow + i;
-      const m = mask[gi];
-      if (m === 0) continue;
+      let m: number;
+      let ddx: number;
+      let ddy: number;
+      let shade: number;
+
+      if (exact) {
+        const gi = (y0 + j) * baseW + (x0 + i);
+        m = mask[gi];
+        if (m === 0) continue;
+        ddx = fold.dx[gi] / 256;
+        ddy = fold.dy[gi] / 256;
+        shade = fold.shade[gi];
+      } else {
+        const bx = (x0 + i + 0.5) / s - 0.5;
+        const by = (y0 + j + 0.5) / s - 0.5;
+        m = bilerp(mask, baseW, baseH, bx, by);
+        if (m < 1) continue;
+        ddx = (bilerp(fold.dx, baseW, baseH, bx, by) / 256) * s;
+        ddy = (bilerp(fold.dy, baseW, baseH, bx, by) / 256) * s;
+        shade = bilerp(fold.shade, baseW, baseH, bx, by);
+      }
 
       // Bilinear sample of the print layer at the fold-displaced position
-      const fx = i + fold.dx[gi] / 256;
-      const fy = j + fold.dy[gi] / 256;
+      const fx = i + ddx;
+      const fy = j + ddy;
       const ix = Math.floor(fx);
       const iy = Math.floor(fy);
       const tx = fx - ix;
@@ -440,7 +629,7 @@ function drawWarpedPrint(
       }
       if (accA < 0.5) continue;
 
-      let f = 1 + (strength * fold.shade[gi]) / 1000;
+      let f = 1 + (strength * shade) / 1000;
       f = f < 0.55 ? 0.55 : f > 1.25 ? 1.25 : f;
 
       const o = (j * bw + i) * 4;
@@ -458,94 +647,68 @@ function drawWarpedPrint(
   target.drawImage(tmp, x0, y0);
 }
 
-/** Shared placement math (2D photo space) for the print. */
-function getPrintPlacement(
+/**
+ * Shared placement math (2D photo space) for the print.
+ * Body prints move by up to 40% of the canvas, sleeve prints by up to 30%.
+ */
+export const BODY_DRAG_RANGE = 0.4;
+export const SLEEVE_DRAG_RANGE = 0.3;
+
+export function getPrintPlacement(
   width: number,
   height: number,
-  graphicImg: HTMLImageElement,
+  aspect: number,
   graphic: GraphicSettings
 ) {
   const isSleeve = graphic.side === 'sleeve_left' || graphic.side === 'sleeve_right';
   // On the front photo the wearer's left sleeve is on the image's right
   const dir = graphic.side === 'sleeve_left' ? 1 : -1;
+  const range = isSleeve ? SLEEVE_DRAG_RANGE : BODY_DRAG_RANGE;
 
   const cx = isSleeve
-    ? width * (0.5 + dir * 0.335) + (graphic.x / 100) * width * 0.1
-    : width * 0.5 + (graphic.x / 100) * (width * 0.4);
+    ? width * (0.5 + dir * 0.335) + (graphic.x / 100) * width * range
+    : width * 0.5 + (graphic.x / 100) * (width * range);
   const cy = isSleeve
-    ? height * 0.31 + (graphic.y / 100) * height * 0.1
-    : height * 0.48 + (graphic.y / 100) * (height * 0.4);
+    ? height * 0.31 + (graphic.y / 100) * height * range
+    : height * 0.48 + (graphic.y / 100) * (height * range);
 
   const baseDim = width * (isSleeve ? 0.15 : 0.38);
   const printW = baseDim * graphic.scale;
-  const aspect = graphicImg.height / (graphicImg.width || 1);
   const printH = printW * aspect;
   const extraRot = isSleeve ? dir * 35 : 0;
-  return { cx, cy, printW, printH, extraRot, isSleeve };
+  return { cx, cy, printW, printH, extraRot, isSleeve, range };
 }
 
 /**
- * Renders a transparent-background, tightly-cropped shirt (with print) for the AR
- * overlay, so the camera feed is never covered by a studio backdrop.
+ * Finds the top-most layer under a point (canvas coordinates of a
+ * `width` x `height` canvas). Used to select a layer by tapping it in 2D.
  */
-export async function renderShirtCutout(
-  fabric: FabricInfo,
-  color: TshirtColor,
-  graphic: GraphicSettings,
-  technique: PrintTechniqueInfo,
-  side: ShirtSide,
-  size = 900
-): Promise<HTMLCanvasElement> {
-  const assets = await prepareShirtAssets(side, color.id === 'black', size, size);
-
-  let graphicImg: HTMLImageElement | null = null;
-  const printsOnThisView =
-    graphic.imageUrl &&
-    (graphic.side === side ||
-      (side === 'front' && (graphic.side === 'sleeve_left' || graphic.side === 'sleeve_right')));
-  if (printsOnThisView) {
-    try {
-      graphicImg = await getCachedImage(graphic.imageUrl);
-    } catch (e) {
-      console.error('Failed to load graphic image:', e);
+export function hitTestLayer(
+  px: number,
+  py: number,
+  width: number,
+  height: number,
+  layers: PrintLayer[]
+): string | null {
+  for (let i = layers.length - 1; i >= 0; i--) {
+    const { graphic, img } = layers[i];
+    const aspect = img.height / (img.width || 1);
+    const p = getPrintPlacement(width, height, aspect, graphic);
+    const theta = ((graphic.rotation + p.extraRot) * Math.PI) / 180;
+    const dx = px - p.cx;
+    const dy = py - p.cy;
+    const rx = dx * Math.cos(theta) + dy * Math.sin(theta);
+    const ry = -dx * Math.sin(theta) + dy * Math.cos(theta);
+    if (Math.abs(rx) <= p.printW / 2 && Math.abs(ry) <= p.printH / 2) {
+      return graphic.id;
     }
   }
-
-  const full = document.createElement('canvas');
-  full.width = size;
-  full.height = size;
-  renderRealisticTshirt(
-    full.getContext('2d')!, size, size, assets, color, fabric, true, 'white', graphic, graphicImg, technique
-  );
-
-  // Crop to the garment bounds
-  let minX = size, minY = size, maxX = 0, maxY = 0;
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      if (assets.mask[y * size + x] > 20) {
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
-      }
-    }
-  }
-  const pad = 6;
-  minX = Math.max(0, minX - pad);
-  minY = Math.max(0, minY - pad);
-  maxX = Math.min(size - 1, maxX + pad);
-  maxY = Math.min(size - 1, maxY + pad);
-  const cw = Math.max(1, maxX - minX + 1);
-  const ch = Math.max(1, maxY - minY + 1);
-  const out = document.createElement('canvas');
-  out.width = cw;
-  out.height = ch;
-  out.getContext('2d')!.drawImage(full, minX, minY, cw, ch, 0, 0, cw, ch);
-  return out;
+  return null;
 }
 
 /**
- * Renders the printed graphic with perspective, scaling, and realistic print technique simulation.
+ * Renders the printed graphic with scaling and print technique simulation.
+ * `px` scales pixel-based effects (shadows, stitch lines) for hi-res output.
  */
 export function renderPrintGraphic(
   ctx: CanvasRenderingContext2D,
@@ -555,12 +718,14 @@ export function renderPrintGraphic(
   graphic: GraphicSettings,
   technique: PrintTechniqueInfo,
   fabric: FabricInfo,
-  color: TshirtColor
+  color: TshirtColor,
+  px = 1
 ) {
   ctx.save();
 
+  const aspect = graphicImg.height / (graphicImg.width || 1);
   const { cx: centerX, cy: centerY, printW: printWidth, printH: printHeight, extraRot } =
-    getPrintPlacement(width, height, graphicImg, graphic);
+    getPrintPlacement(width, height, aspect, graphic);
 
   ctx.translate(centerX, centerY);
   ctx.rotate(((graphic.rotation + extraRot) * Math.PI) / 180);
@@ -568,36 +733,24 @@ export function renderPrintGraphic(
   // Technique specific effects
   if (technique.id === 'plastisol') {
     ctx.shadowColor = 'rgba(0,0,0,0.35)';
-    ctx.shadowBlur = 4;
-    ctx.shadowOffsetY = 2;
+    ctx.shadowBlur = 4 * px;
+    ctx.shadowOffsetY = 2 * px;
   } else if (technique.id === 'dtf') {
     ctx.shadowColor = 'rgba(0,0,0,0.18)';
-    ctx.shadowBlur = 2;
-    ctx.shadowOffsetY = 1;
+    ctx.shadowBlur = 2 * px;
+    ctx.shadowOffsetY = 1 * px;
   } else if (technique.id === 'rubber') {
     ctx.shadowColor = 'rgba(0,0,0,0.12)';
-    ctx.shadowBlur = 1;
+    ctx.shadowBlur = 1 * px;
   }
 
-  // Color Filter Processing
   ctx.globalAlpha = graphic.opacity;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
 
-  if (graphic.colorFilter === 'monochrome_white') {
-    ctx.filter = 'brightness(200%) grayscale(100%)';
-  } else if (graphic.colorFilter === 'monochrome_black') {
-    ctx.filter = 'brightness(0%)';
-  } else if (graphic.colorFilter === 'vintage_warm') {
-    ctx.filter = 'sepia(40%) contrast(90%) brightness(95%)';
-  }
-
-  // Draw the print artwork
-  ctx.drawImage(
-    graphicImg,
-    -printWidth / 2,
-    -printHeight / 2,
-    printWidth,
-    printHeight
-  );
+  // Draw the print artwork (ink filter is baked in, no ctx.filter needed)
+  const source = getFilteredSource(graphicImg, graphic.colorFilter, printWidth);
+  ctx.drawImage(source, -printWidth / 2, -printHeight / 2, printWidth, printHeight);
 
   // Technique-specific finish overlays
   if (technique.id === 'discharge') {
@@ -616,8 +769,8 @@ export function renderPrintGraphic(
     ctx.globalCompositeOperation = 'source-atop';
     ctx.globalAlpha = 0.25;
     ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-    ctx.lineWidth = 1.5;
-    for (let y = -printHeight / 2; y < printHeight / 2; y += 3) {
+    ctx.lineWidth = 1.5 * px;
+    for (let y = -printHeight / 2; y < printHeight / 2; y += 3 * px) {
       ctx.beginPath();
       ctx.moveTo(-printWidth / 2, y);
       ctx.lineTo(printWidth / 2, y);

@@ -11,8 +11,7 @@ import {
   Move,
   ChevronDown,
   ChevronUp,
-  Sliders,
-  Maximize2
+  Sliders
 } from 'lucide-react';
 import { 
   FabricInfo, 
@@ -21,14 +20,16 @@ import {
   PrintTechniqueInfo, 
   GarmentSize, 
   PlacementSide, 
-  StudioBgColor 
+  StudioBgColor,
+  MAX_GRAPHICS
 } from '../types/sablon';
-import { getCachedImage } from '../utils/fabricRenderer';
+import { getCachedImage, getFilteredSource } from '../utils/fabricRenderer';
 
 interface ThreeDStudioProps {
   fabric: FabricInfo;
   color: TshirtColor;
-  graphic: GraphicSettings;
+  graphics: GraphicSettings[];
+  activeGraphic: GraphicSettings | null;
   technique: PrintTechniqueInfo;
   currentSide: PlacementSide;
   garmentSize: GarmentSize;
@@ -37,7 +38,6 @@ interface ThreeDStudioProps {
   onGraphicChange: (updated: Partial<GraphicSettings>) => void;
   onStudioBgChange: (bg: StudioBgColor) => void;
   onCanvasRendered?: (canvas: HTMLCanvasElement) => void;
-  onOpenAR: () => void;
   onOpenInspect: () => void;
   onSwitchTo2D?: () => void;
 }
@@ -49,7 +49,7 @@ interface ThreeDStudioProps {
 // normal-mapped folds and lighting, and can never float, slice or tear.
 // Coordinates are the mesh's local space (raw GLB units).
 // ---------------------------------------------------------------------------
-interface PrintUniforms {
+interface PrintLayerUniforms {
   uPrintMap: { value: THREE.Texture };
   uPrintOrigin: { value: THREE.Vector3 };
   uPrintAxis: { value: THREE.Vector3 };
@@ -61,7 +61,7 @@ interface PrintUniforms {
   uPrintOn: { value: number };
 }
 
-function createPrintUniforms(): PrintUniforms {
+function createLayerUniforms(): PrintLayerUniforms {
   const empty = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1);
   empty.needsUpdate = true;
   return {
@@ -77,9 +77,55 @@ function createPrintUniforms(): PrintUniforms {
   };
 }
 
-function applyPrintShader(material: THREE.MeshStandardMaterial, u: PrintUniforms) {
+/** One independent uniform set per artwork layer (up to MAX_GRAPHICS). */
+function createPrintUniforms(): PrintLayerUniforms[] {
+  return Array.from({ length: MAX_GRAPHICS }, () => createLayerUniforms());
+}
+
+function applyPrintShader(material: THREE.MeshStandardMaterial, layers: PrintLayerUniforms[]) {
+  const declarations = layers
+    .map(
+      (_, i) => `uniform sampler2D uPrintMap${i};
+uniform vec3 uPrintOrigin${i};
+uniform vec3 uPrintAxis${i};
+uniform vec3 uPrintRight${i};
+uniform vec3 uPrintUp${i};
+uniform vec2 uPrintSize${i};
+uniform float uPrintRot${i};
+uniform float uPrintRough${i};
+uniform float uPrintOn${i};`
+    )
+    .join('\n');
+
+  // Each layer blends over the previous ones, so later layers sit on top.
+  // The texture is sampled unconditionally (uniform control flow) and masked afterwards.
+  const blocks = layers
+    .map(
+      (_, i) => `{
+  vec3 rel = vPrintPos - uPrintOrigin${i};
+  vec2 p = vec2(dot(rel, uPrintRight${i}), dot(rel, uPrintUp${i}));
+  float cr = cos(uPrintRot${i});
+  float sr = sin(uPrintRot${i});
+  p = vec2(cr * p.x - sr * p.y, sr * p.x + cr * p.y);
+  vec2 uv = p / uPrintSize${i} + 0.5;
+  vec4 dc = texture2D(uPrintMap${i}, clamp(uv, 0.0, 1.0));
+  // Only cloth that faces the projector gets printed (fades out around the sides)
+  float facing = smoothstep(0.30, 0.65, dot(pNrm, uPrintAxis${i}));
+  bool inside = uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0;
+  float pm = (uPrintOn${i} > 0.5 && gl_FrontFacing && inside) ? dc.a * facing : 0.0;
+  diffuseColor.rgb = mix(diffuseColor.rgb, dc.rgb, pm);
+  printRough = mix(printRough, uPrintRough${i}, pm);
+  printMask = max(printMask, pm);
+}`
+    )
+    .join('\n');
+
   material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, u);
+    layers.forEach((u, i) => {
+      (Object.keys(u) as (keyof PrintLayerUniforms)[]).forEach((k) => {
+        shader.uniforms[`${k}${i}`] = u[k];
+      });
+    });
 
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vPrintPos;\nvarying vec3 vPrintNrm;')
@@ -88,47 +134,23 @@ function applyPrintShader(material: THREE.MeshStandardMaterial, u: PrintUniforms
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
-        `#include <common>
-varying vec3 vPrintPos;
-varying vec3 vPrintNrm;
-uniform sampler2D uPrintMap;
-uniform vec3 uPrintOrigin;
-uniform vec3 uPrintAxis;
-uniform vec3 uPrintRight;
-uniform vec3 uPrintUp;
-uniform vec2 uPrintSize;
-uniform float uPrintRot;
-uniform float uPrintRough;
-uniform float uPrintOn;`
+        `#include <common>\nvarying vec3 vPrintPos;\nvarying vec3 vPrintNrm;\n${declarations}`
       )
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
 float printMask = 0.0;
-if (uPrintOn > 0.5 && gl_FrontFacing) {
-  // Only cloth that faces the projector gets printed (fades out around the sides)
-  float facing = dot(normalize(vPrintNrm), uPrintAxis);
-  float k = smoothstep(0.30, 0.65, facing);
-  vec3 rel = vPrintPos - uPrintOrigin;
-  vec2 p = vec2(dot(rel, uPrintRight), dot(rel, uPrintUp));
-  float c = cos(uPrintRot);
-  float s = sin(uPrintRot);
-  p = vec2(c * p.x - s * p.y, s * p.x + c * p.y);
-  vec2 uv = p / uPrintSize + 0.5;
-  if (k > 0.0 && uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0) {
-    vec4 dc = texture2D(uPrintMap, uv);
-    printMask = dc.a * k;
-    diffuseColor.rgb = mix(diffuseColor.rgb, dc.rgb, printMask);
-  }
-}`
+float printRough = 0.8;
+vec3 pNrm = normalize(vPrintNrm);
+${blocks}`
       )
       .replace(
         '#include <roughnessmap_fragment>',
         `#include <roughnessmap_fragment>
-roughnessFactor = mix(roughnessFactor, uPrintRough, printMask);`
+roughnessFactor = mix(roughnessFactor, printRough, printMask);`
       );
   };
-  material.customProgramCacheKey = () => 'sablon-print-projection-v1';
+  material.customProgramCacheKey = () => `sablon-print-projection-v2-${layers.length}`;
 }
 
 /** Projector frame (mesh-local) for each placement side. */
@@ -173,7 +195,8 @@ function getPrintFrame(side: PlacementSide, gx: number, gy: number) {
 export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   fabric,
   color,
-  graphic,
+  graphics,
+  activeGraphic,
   technique,
   currentSide,
   garmentSize,
@@ -182,18 +205,25 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   onGraphicChange,
   onStudioBgChange,
   onCanvasRendered,
-  onOpenAR,
   onOpenInspect,
   onSwitchTo2D
 }) => {
+  // The layer being edited by sliders / drag (may be null when there are no layers)
+  const graphic = activeGraphic;
   const mountRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const tshirtRootGroup = useRef<THREE.Group | null>(null);
   const tshirtMeshRef = useRef<THREE.Mesh | null>(null);
-  const printUniformsRef = useRef<PrintUniforms | null>(null);
-  const printTextureRef = useRef<THREE.Texture | null>(null);
+  const printUniformsRef = useRef<PrintLayerUniforms[] | null>(null);
+  // Per-layer artwork textures (rebuilt only when image / ink filter / opacity change)
+  const texCacheRef = useRef(
+    new Map<string, { tex: THREE.Texture; src: string; filter: string; opacity: number; aspect: number }>()
+  );
+  const pendingTexRef = useRef(new Set<string>());
+  const graphicsRef = useRef<GraphicSettings[]>(graphics);
+  graphicsRef.current = graphics;
 
   // Lights
   const ambientLightRef = useRef<THREE.AmbientLight | null>(null);
@@ -212,9 +242,6 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     isAutoRotatingRef.current = isAutoRotating;
   }, [isAutoRotating]);
 
-  // Guards against overlapping async decal builds
-  const decalRequestId = useRef(0);
-  
   // Interactive Mode: 'rotate' (spin 360) vs 'graphic' (drag graphic)
   const [interactMode, setInteractMode] = useState<'rotate' | 'graphic'>('rotate');
   const [isModelLoaded, setIsModelLoaded] = useState(false);
@@ -234,9 +261,16 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     }
   };
 
+  // Closest equivalent of the side's angle to the current rotation (no multi-turn spin-back)
+  const nearestAngleForSide = (side: PlacementSide): number => {
+    const base = getAngleForSide(side);
+    const turns = Math.round((currentRotationY.current - base) / (Math.PI * 2));
+    return base + turns * Math.PI * 2;
+  };
+
   // Sync rotation with currentSide prop
   useEffect(() => {
-    targetRotationY.current = getAngleForSide(currentSide);
+    targetRotationY.current = nearestAngleForSide(currentSide);
     targetRotationX.current = 0;
   }, [currentSide]);
 
@@ -363,6 +397,8 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
 
       if (isAutoRotatingRef.current) {
         currentRotationY.current += 0.008;
+        // keep the target in step so stopping doesn't rewind all the turns
+        targetRotationY.current = currentRotationY.current;
       } else {
         currentRotationY.current += (targetRotationY.current - currentRotationY.current) * 0.12;
       }
@@ -409,9 +445,11 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
         });
       });
 
+      printUniformsRef.current?.forEach((u) => u.uPrintMap.value?.dispose());
       printUniformsRef.current = null;
-      printTextureRef.current?.dispose();
-      printTextureRef.current = null;
+      texCacheRef.current.forEach((e) => e.tex.dispose());
+      texCacheRef.current.clear();
+      pendingTexRef.current.clear();
       tshirtMeshRef.current = null;
       tshirtRootGroup.current = null;
       sceneRef.current = null;
@@ -462,77 +500,139 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     mat.needsUpdate = true;
   }, [color, fabric, isModelLoaded]);
 
-  // 5. Artwork projection onto the fabric (shader-based, hugs the surface)
-  const updateGraphicPrint = useCallback(async () => {
-    const requestId = ++decalRequestId.current;
+  // 5. Artwork projection onto the fabric (shader-based, hugs the surface).
+  // Transform changes (x / y / scale / rotation / side) only update uniforms;
+  // the 1024px textures are rebuilt only when image, ink filter or opacity change.
+  const applyLayers = useCallback(() => {
     const uniforms = printUniformsRef.current;
     if (!uniforms) return;
+    const visible = graphicsRef.current.filter((g) => g.visible && g.imageUrl).slice(0, MAX_GRAPHICS);
 
-    if (!graphic.imageUrl) {
-      uniforms.uPrintOn.value = 0;
-      return;
-    }
-
-    try {
-      const graphicImg = await getCachedImage(graphic.imageUrl);
-      // A newer request started (or the scene was torn down) while loading
-      if (requestId !== decalRequestId.current || printUniformsRef.current !== uniforms) return;
-
-      const texW = 1024;
-      const aspect = (graphicImg.height || 1) / (graphicImg.width || 1);
-      const texH = Math.max(64, Math.min(2048, Math.round(texW * aspect)));
-
-      const dCanvas = document.createElement('canvas');
-      dCanvas.width = texW;
-      dCanvas.height = texH;
-      const dctx = dCanvas.getContext('2d');
-      if (!dctx) return;
-
-      if (graphic.colorFilter === 'monochrome_white') {
-        dctx.filter = 'brightness(200%) grayscale(100%)';
-      } else if (graphic.colorFilter === 'monochrome_black') {
-        dctx.filter = 'brightness(0%)';
-      } else if (graphic.colorFilter === 'vintage_warm') {
-        dctx.filter = 'sepia(45%) contrast(90%)';
+    uniforms.forEach((u, i) => {
+      const g = visible[i];
+      const entry = g ? texCacheRef.current.get(g.id) : undefined;
+      if (!g || !entry) {
+        u.uPrintOn.value = 0;
+        return;
       }
-      dctx.globalAlpha = graphic.opacity;
-      dctx.drawImage(graphicImg, 0, 0, texW, texH);
+      u.uPrintMap.value = entry.tex;
 
-      const tex = new THREE.CanvasTexture(dCanvas);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.anisotropy = rendererRef.current?.capabilities.getMaxAnisotropy() ?? 4;
-      tex.needsUpdate = true;
+      const frame = getPrintFrame(g.side, g.x, g.y);
+      u.uPrintOrigin.value.copy(frame.origin);
+      u.uPrintAxis.value.copy(frame.axis);
+      u.uPrintRight.value.copy(frame.right);
+      u.uPrintUp.value.copy(frame.up);
 
-      const oldTex = printTextureRef.current;
-      printTextureRef.current = tex;
-      uniforms.uPrintMap.value = tex;
-      oldTex?.dispose();
-
-      const frame = getPrintFrame(graphic.side, graphic.x, graphic.y);
-      uniforms.uPrintOrigin.value.copy(frame.origin);
-      uniforms.uPrintAxis.value.copy(frame.axis);
-      uniforms.uPrintRight.value.copy(frame.right);
-      uniforms.uPrintUp.value.copy(frame.up);
-
-      const isSleeve = graphic.side === 'sleeve_left' || graphic.side === 'sleeve_right';
-      const width = 0.17 * graphic.scale * (isSleeve ? 0.55 : 1.0);
-      uniforms.uPrintSize.value.set(width, width * aspect);
+      const isSleeve = g.side === 'sleeve_left' || g.side === 'sleeve_right';
+      const width = 0.17 * g.scale * (isSleeve ? 0.55 : 1.0);
+      u.uPrintSize.value.set(width, width * entry.aspect);
       // Positive rotation = clockwise as seen by the viewer
-      uniforms.uPrintRot.value = (graphic.rotation * Math.PI) / 180;
-      uniforms.uPrintRough.value = technique.id === 'plastisol' ? 0.35 : 0.8;
-      uniforms.uPrintOn.value = 1;
+      u.uPrintRot.value = (g.rotation * Math.PI) / 180;
+      u.uPrintRough.value = technique.id === 'plastisol' ? 0.35 : 0.8;
+      u.uPrintOn.value = 1;
+    });
 
-      if (onCanvasRendered && rendererRef.current) {
-        onCanvasRendered(rendererRef.current.domElement);
-      }
-    } catch (err) {
-      console.error('Error applying 3D print:', err);
+    if (onCanvasRendered && rendererRef.current) {
+      onCanvasRendered(rendererRef.current.domElement);
     }
-  }, [graphic, technique, isModelLoaded, onCanvasRendered]);
+  }, [technique, onCanvasRendered]);
+
+  const ensureTextures = useCallback(async () => {
+    const all = graphicsRef.current;
+    const ids = new Set(all.map((g) => g.id));
+    texCacheRef.current.forEach((entry, id) => {
+      if (!ids.has(id)) {
+        entry.tex.dispose();
+        texCacheRef.current.delete(id);
+      }
+    });
+
+    const wanted = all.filter((g) => g.visible && g.imageUrl).slice(0, MAX_GRAPHICS);
+    let changed = false;
+
+    await Promise.all(
+      wanted.map(async (g) => {
+        const cached = texCacheRef.current.get(g.id);
+        if (
+          cached &&
+          cached.src === g.imageUrl &&
+          cached.filter === g.colorFilter &&
+          cached.opacity === g.opacity
+        ) {
+          return;
+        }
+        const key = `${g.id}|${g.imageUrl}|${g.colorFilter}|${g.opacity}`;
+        if (pendingTexRef.current.has(key)) return;
+        pendingTexRef.current.add(key);
+
+        try {
+          const img = await getCachedImage(g.imageUrl);
+          if (!printUniformsRef.current) return; // scene torn down
+          const latest = graphicsRef.current.find((x) => x.id === g.id);
+          if (
+            !latest ||
+            latest.imageUrl !== g.imageUrl ||
+            latest.colorFilter !== g.colorFilter ||
+            latest.opacity !== g.opacity
+          ) {
+            return; // a newer update will rebuild it
+          }
+
+          const texW = 1024;
+          const natW = img.naturalWidth || img.width || 1;
+          const natH = img.naturalHeight || img.height || 1;
+          const texH = Math.max(64, Math.min(2048, Math.round(texW * (natH / natW))));
+
+          const c = document.createElement('canvas');
+          c.width = texW;
+          c.height = texH;
+          const cctx = c.getContext('2d');
+          if (!cctx) return;
+          cctx.globalAlpha = g.opacity;
+          cctx.drawImage(getFilteredSource(img, g.colorFilter, texW), 0, 0, texW, texH);
+
+          const tex = new THREE.CanvasTexture(c);
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.anisotropy = rendererRef.current?.capabilities.getMaxAnisotropy() ?? 4;
+          tex.needsUpdate = true;
+
+          texCacheRef.current.get(g.id)?.tex.dispose();
+          texCacheRef.current.set(g.id, {
+            tex,
+            src: g.imageUrl,
+            filter: g.colorFilter,
+            opacity: g.opacity,
+            aspect: texH / texW
+          });
+          changed = true;
+        } catch (err) {
+          console.error('Error building 3D print texture:', err);
+        } finally {
+          pendingTexRef.current.delete(key);
+        }
+      })
+    );
+
+    if (changed) applyLayers();
+  }, [applyLayers]);
 
   useEffect(() => {
-    updateGraphicPrint();
-  }, [updateGraphicPrint]);
+    applyLayers();
+    void ensureTextures();
+  }, [graphics, technique, isModelLoaded, applyLayers, ensureTextures]);
+
+  // Mouse wheel zoom: native non-passive listener so preventDefault really blocks page scroll
+  useEffect(() => {
+    const el = mountRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? -0.1 : 0.1;
+      setCameraDistance((prev) => Math.max(0.75, Math.min(2.1, prev + delta)));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
 
   // Pointer & Touch Handlers
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -549,7 +649,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     if (interactMode === 'rotate') {
       targetRotationY.current += dx * 0.012;
       targetRotationX.current = Math.max(-0.45, Math.min(0.45, targetRotationX.current + dy * 0.007));
-    } else {
+    } else if (graphic) {
       const sens = 0.28;
       const newX = Math.max(-50, Math.min(50, graphic.x + dx * sens));
       const newY = Math.max(-50, Math.min(50, graphic.y + dy * sens));
@@ -568,12 +668,6 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     }
   };
 
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? -0.10 : 0.10;
-    setCameraDistance(prev => Math.max(0.75, Math.min(2.1, prev + delta)));
-  };
-
   return (
     <div className={`relative flex flex-col items-center justify-center w-full h-full select-none overflow-hidden transition-colors duration-300 ${
       studioBgColor === 'white' ? 'bg-white text-zinc-900' : 'bg-zinc-950 text-white'
@@ -584,7 +678,6 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onWheel={handleWheel}
         className={`w-full h-full touch-none flex items-center justify-center ${
           interactMode === 'rotate' ? 'cursor-grab active:cursor-grabbing' : 'cursor-move'
         }`}
@@ -625,6 +718,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
       </div>
 
       {/* FLOATING ON-CANVAS SLIDERS: ALWAYS ACCESSIBLE EVEN WHEN BOTTOM PANEL IS CLOSED */}
+      {graphic && (
       <div className="absolute bottom-2 left-2 right-14 sm:left-4 sm:right-16 z-20 pointer-events-auto">
         <div className="bg-zinc-950/95 border border-zinc-800 text-zinc-200 p-2.5 rounded-2xl shadow-2xl backdrop-blur-md max-w-sm mx-auto">
           {/* Header Row with Title and Collapse Button */}
@@ -751,6 +845,8 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
         </div>
       </div>
 
+      )}
+
       {/* Floating Right Tool Strip: Zoom In/Out, Turntable, Reset */}
       <div className={`absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1.5 p-1 rounded-xl shadow-xl border backdrop-blur ${
         studioBgColor === 'white' ? 'bg-white/95 border-zinc-200 text-zinc-700' : 'bg-zinc-900/95 border-zinc-800 text-zinc-300'
@@ -785,7 +881,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
 
         <button
           onClick={() => {
-            targetRotationY.current = getAngleForSide(currentSide);
+            targetRotationY.current = nearestAngleForSide(currentSide);
             targetRotationX.current = 0;
             setCameraDistance(1.35);
           }}

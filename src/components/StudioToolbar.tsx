@@ -5,10 +5,7 @@ import {
   Sun, 
   Moon, 
   Maximize2, 
-  Minimize2,
-  SlidersHorizontal,
-  ChevronDown,
-  ChevronUp
+  SlidersHorizontal
 } from 'lucide-react';
 import { PlacementSide, StudioBgColor, GarmentSize } from '../types/sablon';
 
@@ -140,8 +137,7 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({
               Depan
             </button>
 
-            {studioMode === '3d' && (
-              <button
+                          <button
                 onClick={() => onSideChange('sleeve_left')}
                 className={`min-h-[30px] sm:min-h-[32px] px-2.5 sm:px-3 rounded-lg transition-all touch-manipulation whitespace-nowrap ${
                   currentSide === 'sleeve_left'
@@ -151,7 +147,6 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({
               >
                 Lengan Kiri
               </button>
-            )}
 
             <button
               onClick={() => onSideChange('back')}
@@ -164,8 +159,7 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({
               Belakang
             </button>
 
-            {studioMode === '3d' && (
-              <button
+                          <button
                 onClick={() => onSideChange('sleeve_right')}
                 className={`min-h-[30px] sm:min-h-[32px] px-2.5 sm:px-3 rounded-lg transition-all touch-manipulation whitespace-nowrap ${
                   currentSide === 'sleeve_right'
@@ -175,7 +169,6 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({
               >
                 Lengan Kanan
               </button>
-            )}
           </div>
         </div>
 

@@ -65,7 +65,11 @@ export interface PlacementPreset {
   defaultY: number; // percentage offset -50 to 50
 }
 
+export const MAX_GRAPHICS = 6;
+
 export interface GraphicSettings {
+  id: string;
+  visible: boolean;
   imageUrl: string;
   imageName: string;
   side: PlacementSide;
