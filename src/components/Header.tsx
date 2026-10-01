@@ -18,11 +18,11 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectSidebarTab
 }) => {
   return (
-    <header className="flex items-center justify-between px-4 sm:px-6 h-14 border-b border-zinc-850 bg-zinc-950/95 backdrop-blur z-30 shrink-0">
+    <header className="flex items-center justify-between px-3 sm:px-6 h-16 border-b border-zinc-850 bg-zinc-950/95 backdrop-blur z-30 shrink-0">
       {/* Zone 1: Logo Try-D */}
       <div className="flex items-center min-w-0">
         <a href="/" aria-label="Try-D - Try On Your Design" className="flex items-center shrink-0">
-          <img src={logo} alt="Try-D" width={560} height={193} className="h-9 sm:h-10 w-auto select-none" draggable={false} />
+          <img src={logo} alt="Try-D" width={560} height={193} className="h-11 sm:h-12 w-auto select-none" draggable={false} />
         </a>
       </div>
 

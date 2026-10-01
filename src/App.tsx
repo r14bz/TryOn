@@ -34,6 +34,7 @@ import { TextureInspectModal } from './components/TextureInspectModal';
 import { PriceQuoteModal } from './components/PriceQuoteModal';
 import { ExportModal } from './components/ExportModal';
 import { forgetCachedImage } from './utils/fabricRenderer';
+import { isDesktopViewport } from './utils/viewport';
 
 // Studio 3D dimuat belakangan (three.js besar) agar halaman awal cepat
 const ThreeDStudio = lazy(() =>
@@ -57,7 +58,8 @@ export default function App() {
   const [studioBgColor, setStudioBgColor] = useState<StudioBgColor>('white');
 
   // Expand / Collapse state for the customization tabs panel
-  const [isCustomizerExpanded, setIsCustomizerExpanded] = useState(true);
+  // Panel kustomisasi: terbuka di desktop, tertutup saat pertama dibuka di mobile
+  const [isCustomizerExpanded, setIsCustomizerExpanded] = useState(() => isDesktopViewport());
 
   // Graphic layers (several images can sit on the shirt). Last item = top-most print.
   const [graphics, setGraphics] = useState<GraphicSettings[]>(() => [
@@ -243,6 +245,9 @@ export default function App() {
                 studioBgColor={studioBgColor}
                 onSideChange={handleSideChange}
                 onGraphicChange={handleGraphicChange}
+                onSelectGraphic={handleSelectGraphic}
+                onToggleGraphicVisible={handleToggleGraphic}
+                onRemoveGraphic={handleRemoveGraphic}
                 onStudioBgChange={setStudioBgColor}
                 onCanvasRendered={setRenderedCanvas}
                 onOpenInspect={() => setIsTextureModalOpen(true)}
@@ -263,6 +268,8 @@ export default function App() {
                 onGraphicChange={handleGraphicChange}
                 onStudioBgChange={setStudioBgColor}
                 onSelectGraphic={handleSelectGraphic}
+                onToggleGraphicVisible={handleToggleGraphic}
+                onRemoveGraphic={handleRemoveGraphic}
                 onCanvasRendered={setRenderedCanvas}
                 onOpenInspect={() => setIsTextureModalOpen(true)}
                 onSwitchTo3D={() => setStudioMode('3d')}

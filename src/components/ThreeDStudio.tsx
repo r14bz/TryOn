@@ -19,7 +19,7 @@ import {
   StudioBgColor,
   MAX_GRAPHICS
 } from '../types/sablon';
-import { PlacementPanel } from './PlacementPanel';
+import { CanvasEditDock } from './CanvasEditDock';
 import {
   PrintLayerUniforms,
   PrintTextureEntry,
@@ -41,6 +41,9 @@ interface ThreeDStudioProps {
   studioBgColor: StudioBgColor;
   onSideChange: (side: PlacementSide) => void;
   onGraphicChange: (updated: Partial<GraphicSettings>) => void;
+  onSelectGraphic?: (id: string) => void;
+  onToggleGraphicVisible?: (id: string) => void;
+  onRemoveGraphic?: (id: string) => void;
   onStudioBgChange: (bg: StudioBgColor) => void;
   onCanvasRendered?: (canvas: HTMLCanvasElement) => void;
   onOpenInspect: () => void;
@@ -59,6 +62,9 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   studioBgColor,
   onSideChange,
   onGraphicChange,
+  onSelectGraphic,
+  onToggleGraphicVisible,
+  onRemoveGraphic,
   onStudioBgChange,
   onCanvasRendered,
   onOpenInspect,
@@ -494,12 +500,15 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
         </div>
       )}
 
-      {/* Panel posisi & ukuran sablon (lebar mengikuti layar) */}
-      {graphic && (
-        <div className="absolute bottom-2 left-2 right-2 sm:left-4 sm:right-4 z-20 pointer-events-none">
-          <PlacementPanel graphic={graphic} onGraphicChange={onGraphicChange} />
-        </div>
-      )}
+      {/* Dock bawah: daftar Gambar di Kaos + panel Atur Posisi & Ukuran */}
+      <CanvasEditDock
+        graphics={graphics}
+        graphic={graphic}
+        onSelect={onSelectGraphic}
+        onToggleVisible={onToggleGraphicVisible}
+        onRemove={onRemoveGraphic}
+        onGraphicChange={onGraphicChange}
+      />
 
       {/* Floating Right Tool Strip: Zoom In/Out, Turntable, Reset */}
       <div className={`absolute right-2 top-2 sm:right-3 sm:top-1/2 sm:-translate-y-1/2 z-20 flex flex-row sm:flex-col items-center gap-1 sm:gap-1.5 p-1 rounded-xl shadow-xl border backdrop-blur ${

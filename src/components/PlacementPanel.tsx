@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp, RotateCw, Sliders } from 'lucide-react';
 import { GraphicSettings } from '../types/sablon';
+import { isDesktopViewport } from '../utils/viewport';
 
 interface PlacementPanelProps {
   graphic: GraphicSettings;
   onGraphicChange: (updated: Partial<GraphicSettings>) => void;
 }
+
+// Pilihan terakhir pengguna (bertahan saat pindah 3D <-> 2D); null = belum pernah diubah
+let lastExpanded: boolean | null = null;
 
 const stepBtn =
   'w-7 h-7 shrink-0 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 flex items-center justify-center text-[11px] font-bold text-amber-400 touch-manipulation';
@@ -18,7 +22,12 @@ const valueCls = 'w-9 shrink-0 font-mono text-[10px] text-right text-zinc-300';
  * barisnya rapat, dan labelnya tidak turun baris di layar HP.
  */
 export const PlacementPanel: React.FC<PlacementPanelProps> = ({ graphic, onGraphicChange }) => {
-  const [expanded, setExpanded] = useState(true);
+  // Awalnya tertutup di tampilan mobile agar kaos tidak tertutup panel
+  const [expanded, setExpandedState] = useState<boolean>(() => lastExpanded ?? isDesktopViewport());
+  const setExpanded = (value: boolean) => {
+    lastExpanded = value;
+    setExpandedState(value);
+  };
 
   return (
     <div className="w-full max-w-md mx-auto bg-zinc-950/95 border border-zinc-800 text-zinc-200 px-2.5 py-2 rounded-2xl shadow-2xl backdrop-blur-md pointer-events-auto">
