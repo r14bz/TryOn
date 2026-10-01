@@ -23,7 +23,15 @@ import {
   StudioBgColor,
   MAX_GRAPHICS
 } from '../types/sablon';
-import { getCachedImage, getFilteredSource } from '../utils/fabricRenderer';
+import {
+  PrintLayerUniforms,
+  PrintTextureEntry,
+  buildPrintTexture,
+  prepareShirtModel,
+  shirtBaseHex,
+  shirtRoughness,
+  syncLayerUniforms
+} from '../utils/shirt3d';
 
 interface ThreeDStudioProps {
   fabric: FabricInfo;
@@ -42,155 +50,6 @@ interface ThreeDStudioProps {
   onSwitchTo2D?: () => void;
 }
 
-
-// ---------------------------------------------------------------------------
-// Print projection: the artwork is projected onto the shirt surface INSIDE the
-// fabric shader (no extra geometry), so it always hugs the cloth, follows the
-// normal-mapped folds and lighting, and can never float, slice or tear.
-// Coordinates are the mesh's local space (raw GLB units).
-// ---------------------------------------------------------------------------
-interface PrintLayerUniforms {
-  uPrintMap: { value: THREE.Texture };
-  uPrintOrigin: { value: THREE.Vector3 };
-  uPrintAxis: { value: THREE.Vector3 };
-  uPrintRight: { value: THREE.Vector3 };
-  uPrintUp: { value: THREE.Vector3 };
-  uPrintSize: { value: THREE.Vector2 };
-  uPrintRot: { value: number };
-  uPrintRough: { value: number };
-  uPrintOn: { value: number };
-}
-
-function createLayerUniforms(): PrintLayerUniforms {
-  const empty = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1);
-  empty.needsUpdate = true;
-  return {
-    uPrintMap: { value: empty },
-    uPrintOrigin: { value: new THREE.Vector3() },
-    uPrintAxis: { value: new THREE.Vector3(0, 0, 1) },
-    uPrintRight: { value: new THREE.Vector3(1, 0, 0) },
-    uPrintUp: { value: new THREE.Vector3(0, 1, 0) },
-    uPrintSize: { value: new THREE.Vector2(0.17, 0.17) },
-    uPrintRot: { value: 0 },
-    uPrintRough: { value: 0.8 },
-    uPrintOn: { value: 0 }
-  };
-}
-
-/** One independent uniform set per artwork layer (up to MAX_GRAPHICS). */
-function createPrintUniforms(): PrintLayerUniforms[] {
-  return Array.from({ length: MAX_GRAPHICS }, () => createLayerUniforms());
-}
-
-function applyPrintShader(material: THREE.MeshStandardMaterial, layers: PrintLayerUniforms[]) {
-  const declarations = layers
-    .map(
-      (_, i) => `uniform sampler2D uPrintMap${i};
-uniform vec3 uPrintOrigin${i};
-uniform vec3 uPrintAxis${i};
-uniform vec3 uPrintRight${i};
-uniform vec3 uPrintUp${i};
-uniform vec2 uPrintSize${i};
-uniform float uPrintRot${i};
-uniform float uPrintRough${i};
-uniform float uPrintOn${i};`
-    )
-    .join('\n');
-
-  // Each layer blends over the previous ones, so later layers sit on top.
-  // The texture is sampled unconditionally (uniform control flow) and masked afterwards.
-  const blocks = layers
-    .map(
-      (_, i) => `{
-  vec3 rel = vPrintPos - uPrintOrigin${i};
-  vec2 p = vec2(dot(rel, uPrintRight${i}), dot(rel, uPrintUp${i}));
-  float cr = cos(uPrintRot${i});
-  float sr = sin(uPrintRot${i});
-  p = vec2(cr * p.x - sr * p.y, sr * p.x + cr * p.y);
-  vec2 uv = p / uPrintSize${i} + 0.5;
-  vec4 dc = texture2D(uPrintMap${i}, clamp(uv, 0.0, 1.0));
-  // Only cloth that faces the projector gets printed (fades out around the sides)
-  float facing = smoothstep(0.30, 0.65, dot(pNrm, uPrintAxis${i}));
-  bool inside = uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0;
-  float pm = (uPrintOn${i} > 0.5 && gl_FrontFacing && inside) ? dc.a * facing : 0.0;
-  diffuseColor.rgb = mix(diffuseColor.rgb, dc.rgb, pm);
-  printRough = mix(printRough, uPrintRough${i}, pm);
-  printMask = max(printMask, pm);
-}`
-    )
-    .join('\n');
-
-  material.onBeforeCompile = (shader) => {
-    layers.forEach((u, i) => {
-      (Object.keys(u) as (keyof PrintLayerUniforms)[]).forEach((k) => {
-        shader.uniforms[`${k}${i}`] = u[k];
-      });
-    });
-
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vPrintPos;\nvarying vec3 vPrintNrm;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPrintPos = position;\nvPrintNrm = normal;');
-
-    shader.fragmentShader = shader.fragmentShader
-      .replace(
-        '#include <common>',
-        `#include <common>\nvarying vec3 vPrintPos;\nvarying vec3 vPrintNrm;\n${declarations}`
-      )
-      .replace(
-        '#include <color_fragment>',
-        `#include <color_fragment>
-float printMask = 0.0;
-float printRough = 0.8;
-vec3 pNrm = normalize(vPrintNrm);
-${blocks}`
-      )
-      .replace(
-        '#include <roughnessmap_fragment>',
-        `#include <roughnessmap_fragment>
-roughnessFactor = mix(roughnessFactor, printRough, printMask);`
-      );
-  };
-  material.customProgramCacheKey = () => `sablon-print-projection-v2-${layers.length}`;
-}
-
-/** Projector frame (mesh-local) for each placement side. */
-function getPrintFrame(side: PlacementSide, gx: number, gy: number) {
-  // gx/gy: -50..50 (%) from the placement sliders
-  const axis = new THREE.Vector3();
-  const origin = new THREE.Vector3();
-  let rangeX = 0.26;
-  let rangeY = 0.30;
-
-  switch (side) {
-    case 'front':
-      axis.set(0, 0, 1);
-      origin.set(0, -0.005, 0);
-      break;
-    case 'back':
-      axis.set(0, 0, -1);
-      origin.set(0, -0.005, 0);
-      break;
-    case 'sleeve_left': // wearer's left = +x in the model
-      axis.set(0.94, 0.34, -0.1).normalize();
-      origin.set(0.22, 0.125, -0.025);
-      rangeX = 0.14;
-      rangeY = 0.12;
-      break;
-    default: // sleeve_right
-      axis.set(-0.94, 0.34, -0.1).normalize();
-      origin.set(-0.22, 0.125, -0.025);
-      rangeX = 0.14;
-      rangeY = 0.12;
-  }
-
-  // Viewer-oriented basis: up follows +Y, right = (looking direction) x up
-  const up = new THREE.Vector3(0, 1, 0).addScaledVector(axis, -axis.y).normalize();
-  const right = new THREE.Vector3().crossVectors(axis.clone().negate(), up).normalize();
-
-  origin.addScaledVector(right, (gx / 100) * rangeX);
-  origin.addScaledVector(up, -(gy / 100) * rangeY);
-  return { axis, origin, right, up };
-}
 
 export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   fabric,
@@ -219,7 +78,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   const printUniformsRef = useRef<PrintLayerUniforms[] | null>(null);
   // Per-layer artwork textures (rebuilt only when image / ink filter / opacity change)
   const texCacheRef = useRef(
-    new Map<string, { tex: THREE.Texture; src: string; filter: string; opacity: number; aspect: number }>()
+    new Map<string, PrintTextureEntry & { src: string; filter: string; opacity: number }>()
   );
   const pendingTexRef = useRef(new Set<string>());
   const graphicsRef = useRef<GraphicSettings[]>(graphics);
@@ -350,37 +209,11 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
         if (disposed) return;
         const model = gltf.scene;
 
-        model.traverse((child) => {
-          if ((child as THREE.Mesh).isMesh) {
-            const mesh = child as THREE.Mesh;
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
+        // Material kain + shader sablon + atribut anti-tembus (kode bersama dengan ekspor 3D)
+        const prepared = prepareShirtModel(model, color, fabric);
+        printUniformsRef.current = prepared.uniforms;
+        tshirtMeshRef.current = prepared.mesh;
 
-            const isBlack = color.id === 'black';
-            const isWhite = color.id === 'white';
-            const baseHex = isBlack ? '#121214' : isWhite ? '#F8F8FC' : color.hex;
-
-            if (mesh.material) {
-              const origMat = mesh.material as THREE.MeshStandardMaterial;
-              const newMat = new THREE.MeshStandardMaterial({
-                color: new THREE.Color(baseHex),
-                roughness: isBlack ? 0.88 : 0.70,
-                metalness: 0.02,
-                normalMap: origMat.normalMap || null,
-                normalScale: new THREE.Vector2(1.2, 1.2),
-                side: THREE.DoubleSide
-              });
-              const printUniforms = createPrintUniforms();
-              applyPrintShader(newMat, printUniforms);
-              printUniformsRef.current = printUniforms;
-              mesh.material = newMat;
-            }
-            tshirtMeshRef.current = mesh;
-          }
-        });
-
-        // Center model vertically
-        model.position.set(0, 0.045, 0);
         rootGroup.add(model);
         setIsModelLoaded(true);
       },
@@ -490,13 +323,9 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     const mesh = tshirtMeshRef.current;
     if (!mesh || !mesh.material) return;
 
-    const isBlack = color.id === 'black';
-    const isWhite = color.id === 'white';
-    const baseHex = isBlack ? '#121214' : isWhite ? '#F8F8FC' : color.hex;
-
     const mat = mesh.material as THREE.MeshStandardMaterial;
-    mat.color.set(new THREE.Color(baseHex));
-    mat.roughness = isBlack ? 0.88 : fabric.id === 'cotton_bamboo' ? 0.45 : 0.72;
+    mat.color.set(new THREE.Color(shirtBaseHex(color)));
+    mat.roughness = shirtRoughness(color, fabric);
     mat.needsUpdate = true;
   }, [color, fabric, isModelLoaded]);
 
@@ -506,31 +335,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   const applyLayers = useCallback(() => {
     const uniforms = printUniformsRef.current;
     if (!uniforms) return;
-    const visible = graphicsRef.current.filter((g) => g.visible && g.imageUrl).slice(0, MAX_GRAPHICS);
-
-    uniforms.forEach((u, i) => {
-      const g = visible[i];
-      const entry = g ? texCacheRef.current.get(g.id) : undefined;
-      if (!g || !entry) {
-        u.uPrintOn.value = 0;
-        return;
-      }
-      u.uPrintMap.value = entry.tex;
-
-      const frame = getPrintFrame(g.side, g.x, g.y);
-      u.uPrintOrigin.value.copy(frame.origin);
-      u.uPrintAxis.value.copy(frame.axis);
-      u.uPrintRight.value.copy(frame.right);
-      u.uPrintUp.value.copy(frame.up);
-
-      const isSleeve = g.side === 'sleeve_left' || g.side === 'sleeve_right';
-      const width = 0.17 * g.scale * (isSleeve ? 0.55 : 1.0);
-      u.uPrintSize.value.set(width, width * entry.aspect);
-      // Positive rotation = clockwise as seen by the viewer
-      u.uPrintRot.value = (g.rotation * Math.PI) / 180;
-      u.uPrintRough.value = technique.id === 'plastisol' ? 0.35 : 0.8;
-      u.uPrintOn.value = 1;
-    });
+    syncLayerUniforms(uniforms, graphicsRef.current, texCacheRef.current, technique);
 
     if (onCanvasRendered && rendererRef.current) {
       onCanvasRendered(rendererRef.current.domElement);
@@ -566,8 +371,15 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
         pendingTexRef.current.add(key);
 
         try {
-          const img = await getCachedImage(g.imageUrl);
-          if (!printUniformsRef.current) return; // scene torn down
+          const built = await buildPrintTexture(
+            g,
+            1024,
+            rendererRef.current?.capabilities.getMaxAnisotropy() ?? 4
+          );
+          if (!printUniformsRef.current) {
+            built.tex.dispose(); // scene torn down
+            return;
+          }
           const latest = graphicsRef.current.find((x) => x.id === g.id);
           if (
             !latest ||
@@ -575,34 +387,17 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
             latest.colorFilter !== g.colorFilter ||
             latest.opacity !== g.opacity
           ) {
-            return; // a newer update will rebuild it
+            built.tex.dispose(); // a newer update will rebuild it
+            return;
           }
-
-          const texW = 1024;
-          const natW = img.naturalWidth || img.width || 1;
-          const natH = img.naturalHeight || img.height || 1;
-          const texH = Math.max(64, Math.min(2048, Math.round(texW * (natH / natW))));
-
-          const c = document.createElement('canvas');
-          c.width = texW;
-          c.height = texH;
-          const cctx = c.getContext('2d');
-          if (!cctx) return;
-          cctx.globalAlpha = g.opacity;
-          cctx.drawImage(getFilteredSource(img, g.colorFilter, texW), 0, 0, texW, texH);
-
-          const tex = new THREE.CanvasTexture(c);
-          tex.colorSpace = THREE.SRGBColorSpace;
-          tex.anisotropy = rendererRef.current?.capabilities.getMaxAnisotropy() ?? 4;
-          tex.needsUpdate = true;
 
           texCacheRef.current.get(g.id)?.tex.dispose();
           texCacheRef.current.set(g.id, {
-            tex,
+            tex: built.tex,
+            aspect: built.aspect,
             src: g.imageUrl,
             filter: g.colorFilter,
-            opacity: g.opacity,
-            aspect: texH / texW
+            opacity: g.opacity
           });
           changed = true;
         } catch (err) {

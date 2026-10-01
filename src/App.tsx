@@ -30,13 +30,15 @@ import { StudioMockup } from './components/StudioMockup';
 import { GraphicControlPanel } from './components/GraphicControlPanel';
 import { FabricColorSelector } from './components/FabricColorSelector';
 import { PrintTechniqueSelector } from './components/PrintTechniqueSelector';
-const ThreeDStudio = lazy(() =>
-  import('./components/ThreeDStudio').then((m) => ({ default: m.ThreeDStudio }))
-);
 import { TextureInspectModal } from './components/TextureInspectModal';
 import { PriceQuoteModal } from './components/PriceQuoteModal';
 import { ExportModal } from './components/ExportModal';
 import { forgetCachedImage } from './utils/fabricRenderer';
+
+// Studio 3D dimuat belakangan (three.js besar) agar halaman awal cepat
+const ThreeDStudio = lazy(() =>
+  import('./components/ThreeDStudio').then((m) => ({ default: m.ThreeDStudio }))
+);
 
 const createGraphicId = () => `g_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 
@@ -499,7 +501,8 @@ export default function App() {
           color={selectedColor}
           technique={selectedTechnique}
           graphics={graphics}
-          initialView={currentSide === 'back' ? 'back' : 'front'}
+          initialView={currentSide}
+          initialMode={studioMode}
           onClose={() => setIsExportOpen(false)}
         />
       )}

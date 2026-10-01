@@ -10,7 +10,7 @@ import {
 /** Base resolution of the shirt photos; export multiplies this. */
 export const BASE_SIZE = 1024;
 
-export type ExportMode = 'mockup' | 'design';
+export type ExportMode = 'mockup' | 'design' | '3d';
 export type ExportBackground = 'transparent' | 'white' | 'black';
 export type ExportFormat = 'png' | 'jpeg';
 
@@ -35,6 +35,10 @@ export async function renderExportCanvas(
   opts: ExportOptions,
   data: ExportContext
 ): Promise<HTMLCanvasElement> {
+  if (opts.mode === '3d') {
+    // Mode 3D dirender oleh export3d.ts (WebGL), bukan oleh renderer foto 2D
+    throw new Error('renderExportCanvas tidak menangani mode 3D');
+  }
   const size = BASE_SIZE * opts.scale;
   const layers = await loadPrintLayers(data.graphics, view);
 

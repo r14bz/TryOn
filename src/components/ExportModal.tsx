@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Download, Loader2 } from 'lucide-react';
-import { FabricInfo, TshirtColor, GraphicSettings, PrintTechniqueInfo } from '../types/sablon';
+import { FabricInfo, TshirtColor, GraphicSettings, PrintTechniqueInfo, PlacementSide } from '../types/sablon';
 import {
   BASE_SIZE,
   ExportBackground,
@@ -17,17 +17,64 @@ interface ExportModalProps {
   color: TshirtColor;
   technique: PrintTechniqueInfo;
   graphics: GraphicSettings[];
-  initialView: ShirtSide;
+  /** sisi yang sedang dilihat di studio */
+  initialView: PlacementSide;
+  /** tampilan studio saat ini; menentukan jenis hasil awal */
+  initialMode: '3d' | '2d';
   onClose: () => void;
 }
 
-type ViewChoice = 'front' | 'back' | 'both';
+type Scale = 1 | 2 | 3 | 4;
+type ViewChoice = 'front' | 'back' | 'both' | 'sleeve_left' | 'sleeve_right' | 'all';
 
-const SCALES: { value: 2 | 3 | 4; label: string }[] = [
+const SCALES_2D: { value: Scale; label: string }[] = [
   { value: 2, label: `${BASE_SIZE * 2}px` },
   { value: 3, label: `${BASE_SIZE * 3}px` },
   { value: 4, label: `${BASE_SIZE * 4}px` }
 ];
+
+// WebGL di HP lebih terbatas, jadi 4096px tidak ditawarkan untuk hasil 3D
+const SCALES_3D: { value: Scale; label: string }[] = [
+  { value: 1, label: `${BASE_SIZE}px` },
+  { value: 2, label: `${BASE_SIZE * 2}px` },
+  { value: 3, label: `${BASE_SIZE * 3}px` }
+];
+
+const VIEW_OPTIONS_2D: { value: ViewChoice; label: string }[] = [
+  { value: 'front', label: 'Depan' },
+  { value: 'back', label: 'Belakang' },
+  { value: 'both', label: 'Keduanya' }
+];
+
+const VIEW_OPTIONS_3D: { value: ViewChoice; label: string }[] = [
+  { value: 'front', label: 'Depan' },
+  { value: 'back', label: 'Belakang' },
+  { value: 'sleeve_left', label: 'Kiri' },
+  { value: 'sleeve_right', label: 'Kanan' },
+  { value: 'all', label: 'Semua' }
+];
+
+const SIDE_FILE_LABEL: Record<PlacementSide, string> = {
+  front: 'depan',
+  back: 'belakang',
+  sleeve_left: 'lengan-kiri',
+  sleeve_right: 'lengan-kanan'
+};
+
+const SIDE_TEXT_LABEL: Record<PlacementSide, string> = {
+  front: 'tampak depan',
+  back: 'tampak belakang',
+  sleeve_left: 'lengan kiri',
+  sleeve_right: 'lengan kanan'
+};
+
+function viewsFor(choice: ViewChoice): PlacementSide[] {
+  switch (choice) {
+    case 'both': return ['front', 'back'];
+    case 'all': return ['front', 'back', 'sleeve_left', 'sleeve_right'];
+    default: return [choice];
+  }
+}
 
 function Segmented<T extends string | number>({
   value,
@@ -62,44 +109,87 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   technique,
   graphics,
   initialView,
+  initialMode,
   onClose
 }) => {
-  const [mode, setMode] = useState<ExportMode>('mockup');
-  const [viewChoice, setViewChoice] = useState<ViewChoice>(initialView);
-  const [scale, setScale] = useState<2 | 3 | 4>(2);
+  const [mode, setMode] = useState<ExportMode>(initialMode === '3d' ? '3d' : 'mockup');
+  const [viewChoice, setViewChoice] = useState<ViewChoice>(() =>
+    initialMode === '3d' || initialView === 'front' || initialView === 'back' ? initialView : 'front'
+  );
+  const [scale, setScale] = useState<Scale>(2);
   const [background, setBackground] = useState<ExportBackground>('transparent');
   const [format, setFormat] = useState<ExportFormat>('png');
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
 
-  const views: ShirtSide[] = viewChoice === 'both' ? ['front', 'back'] : [viewChoice];
+  const is3D = mode === '3d';
+  const views = viewsFor(viewChoice);
   const size = BASE_SIZE * scale;
+
+  // Pilihan sisi dan resolusi berbeda antara hasil 2D dan 3D; rapikan saat jenis hasil berganti
+  const handleModeChange = (next: ExportMode) => {
+    setMode(next);
+    if (next === '3d') {
+      if (viewChoice === 'both') setViewChoice('all');
+      if (scale === 4) setScale(3);
+    } else {
+      if (viewChoice === 'all') setViewChoice('both');
+      else if (viewChoice === 'sleeve_left' || viewChoice === 'sleeve_right') setViewChoice('front');
+    }
+  };
   const hasTransparentConflict = format === 'jpeg' && background === 'transparent';
 
   const handleSave = async () => {
     setMessage(null);
     const saved: string[] = [];
     try {
-      for (const view of views) {
-        const hasPrints = graphics.some((g) => graphicShownOnView(g, view));
-        if (mode === 'design' && !hasPrints) continue; // nothing to export for this side
-
-        setBusy(`Memproses ${view === 'front' ? 'tampak depan' : 'tampak belakang'} (${size}px)…`);
-        // let the browser paint the progress text before the heavy work
+      if (is3D) {
+        // Render 3D memakai WebGL; modul dimuat saat dibutuhkan agar halaman awal tetap ringan
+        setBusy('Menyiapkan model 3D…');
         await new Promise((r) => setTimeout(r, 30));
-
-        const canvas = await renderExportCanvas(
-          view,
-          { mode, views, scale, background, format },
-          { fabric, color, technique, graphics }
+        const { createShirt3DExporter } = await import('../utils/export3d');
+        const exporter = await createShirt3DExporter(
+          { fabric, color, technique, graphics },
+          size,
+          hasTransparentConflict ? 'white' : background
         );
-        const blob = await canvasToBlob(canvas, format);
-        const name = `sablon-${mode === 'design' ? 'desain' : color.id}-${view === 'front' ? 'depan' : 'belakang'}-${size}px.${format === 'png' ? 'png' : 'jpg'}`;
-        downloadBlob(blob, name);
-        saved.push(name);
-        // release the big bitmap right away
-        canvas.width = 0;
-        canvas.height = 0;
+        try {
+          for (const view of views as PlacementSide[]) {
+            setBusy(`Memproses ${SIDE_TEXT_LABEL[view]} 3D (${exporter.size}px)…`);
+            await new Promise((r) => setTimeout(r, 30));
+            const canvas = exporter.renderView(view);
+            const blob = await canvasToBlob(canvas, format);
+            const name = `sablon-3d-${color.id}-${SIDE_FILE_LABEL[view]}-${exporter.size}px.${format === 'png' ? 'png' : 'jpg'}`;
+            downloadBlob(blob, name);
+            saved.push(name);
+            canvas.width = 0;
+            canvas.height = 0;
+          }
+        } finally {
+          exporter.dispose();
+        }
+      } else {
+        for (const view of views as ShirtSide[]) {
+          const hasPrints = graphics.some((g) => graphicShownOnView(g, view));
+          if (mode === 'design' && !hasPrints) continue; // nothing to export for this side
+
+          setBusy(`Memproses ${SIDE_TEXT_LABEL[view]} (${size}px)…`);
+          // let the browser paint the progress text before the heavy work
+          await new Promise((r) => setTimeout(r, 30));
+
+          const canvas = await renderExportCanvas(
+            view,
+            { mode, views: views as ShirtSide[], scale, background, format },
+            { fabric, color, technique, graphics }
+          );
+          const blob = await canvasToBlob(canvas, format);
+          const name = `sablon-${mode === 'design' ? 'desain' : color.id}-${SIDE_FILE_LABEL[view]}-${size}px.${format === 'png' ? 'png' : 'jpg'}`;
+          downloadBlob(blob, name);
+          saved.push(name);
+          // release the big bitmap right away
+          canvas.width = 0;
+          canvas.height = 0;
+        }
       }
 
       setMessage(
@@ -145,18 +235,21 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 block mb-1.5">
               Jenis hasil
             </label>
-            <Segmented
+            <Segmented<ExportMode>
               value={mode}
-              onChange={setMode}
+              onChange={handleModeChange}
               options={[
-                { value: 'mockup', label: 'Mockup kaos' },
+                { value: '3d', label: 'Model 3D' },
+                { value: 'mockup', label: 'Foto 2D' },
                 { value: 'design', label: 'Desain saja' }
               ]}
             />
             <p className="text-[10px] text-zinc-500 mt-1">
-              {mode === 'mockup'
-                ? 'Kaos lengkap dengan sablon mengikuti lipatan kain.'
-                : 'Hanya gambar sablon pada posisi di kaos, tanpa kaosnya (cocok untuk file cetak).'}
+              {mode === '3d'
+                ? 'Persis tampilan model 3D (cahaya, lipatan, dan posisi sablon seperti di studio 3D).'
+                : mode === 'mockup'
+                  ? 'Kaos foto 2D lengkap dengan sablon mengikuti lipatan kain.'
+                  : 'Hanya gambar sablon pada posisi di kaos, tanpa kaosnya (cocok untuk file cetak).'}
             </p>
           </div>
 
@@ -164,23 +257,23 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 block mb-1.5">
               Sisi kaos
             </label>
-            <Segmented
+            <Segmented<ViewChoice>
               value={viewChoice}
               onChange={setViewChoice}
-              options={[
-                { value: 'front', label: 'Depan' },
-                { value: 'back', label: 'Belakang' },
-                { value: 'both', label: 'Keduanya' }
-              ]}
+              options={is3D ? VIEW_OPTIONS_3D : VIEW_OPTIONS_2D}
             />
-            <p className="text-[10px] text-zinc-500 mt-1">Gambar lengan ikut tampil pada sisi depan.</p>
+            <p className="text-[10px] text-zinc-500 mt-1">
+              {is3D
+                ? 'Kiri / Kanan = tampak lengan kaos. "Semua" menyimpan 4 file.'
+                : 'Gambar lengan ikut tampil pada sisi depan.'}
+            </p>
           </div>
 
           <div>
             <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 block mb-1.5">
               Resolusi (persegi)
             </label>
-            <Segmented value={scale} onChange={setScale} options={SCALES} />
+            <Segmented<Scale> value={scale} onChange={setScale} options={is3D ? SCALES_3D : SCALES_2D} />
             {scale === 4 && (
               <p className="text-[10px] text-amber-400/90 mt-1">
                 4096px memakai banyak memori; di HP bisa gagal. Jika gagal, pilih resolusi lebih kecil.
@@ -193,7 +286,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 block mb-1.5">
                 Latar
               </label>
-              <Segmented
+              <Segmented<ExportBackground>
                 value={background}
                 onChange={setBackground}
                 options={[
@@ -207,7 +300,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 block mb-1.5">
                 Format
               </label>
-              <Segmented
+              <Segmented<ExportFormat>
                 value={format}
                 onChange={setFormat}
                 options={[
@@ -246,7 +339,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               <>
                 <Download className="w-4 h-4" />
                 <span>
-                  Simpan {views.length > 1 ? '2 file' : 'gambar'} ({size}×{size}px)
+                  Simpan {views.length > 1 ? `${views.length} file` : 'gambar'} ({size}×{size}px)
                 </span>
               </>
             )}
