@@ -1,5 +1,6 @@
 import React from 'react';
 import { Download, Calculator } from 'lucide-react';
+import logo from '../assets/logo-try-d.png';
 
 interface HeaderProps {
   onOpenExport: () => void;
@@ -18,11 +19,10 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   return (
     <header className="flex items-center justify-between px-4 sm:px-6 h-14 border-b border-zinc-850 bg-zinc-950/95 backdrop-blur z-30 shrink-0">
-      {/* Zone 1: Single text element wordmark */}
-      <div className="flex items-center gap-2.5 min-w-0">
-        <a href="/" className="text-base sm:text-lg font-bold tracking-tight text-white font-display flex items-center gap-2 truncate">
-          <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
-          <span className="truncate">Sablon Studio</span>
+      {/* Zone 1: Logo Try-D */}
+      <div className="flex items-center min-w-0">
+        <a href="/" aria-label="Try-D - Try On Your Design" className="flex items-center shrink-0">
+          <img src={logo} alt="Try-D" width={560} height={193} className="h-9 sm:h-10 w-auto select-none" draggable={false} />
         </a>
       </div>
 

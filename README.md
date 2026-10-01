@@ -1,4 +1,4 @@
-# Sablon Studio (TryOn 3D)
+# Try-D (Try On Your Design)
 
 Live preview sablon kaos: visualizer 3D (Three.js) dan mockup 2D. Bisa memakai beberapa gambar sekaligus (depan, belakang, lengan kiri/kanan) dan menyimpan hasilnya dalam resolusi tinggi.
 

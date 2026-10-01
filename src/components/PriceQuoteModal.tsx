@@ -97,7 +97,7 @@ export const PriceQuoteModal: React.FC<PriceQuoteModalProps> = ({
 
     ctx.fillStyle = '#A1A1AA';
     ctx.font = '16px "JetBrains Mono", monospace';
-    ctx.fillText('Sablon Studio Production Sheet', 60, 110);
+    ctx.fillText('Try-D Production Sheet', 60, 110);
 
     // 4. Right Side Specs Panel
     const rx = 620;

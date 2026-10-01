@@ -1,5 +1,5 @@
 {
-  "name": "Sablon Studio - Live Preview Sablon Kaos 3D",
+  "name": "Try-D - Try On Your Design",
   "description": "Aplikasi live preview sablon kaos polos dengan visualizer 3D dan mockup 2D bertekstur kain realistis.",
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
