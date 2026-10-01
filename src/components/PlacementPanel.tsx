@@ -6,6 +6,8 @@ import { isDesktopViewport } from '../utils/viewport';
 interface PlacementPanelProps {
   graphic: GraphicSettings;
   onGraphicChange: (updated: Partial<GraphicSettings>) => void;
+  /** daftar gambar, ditampilkan di atas slider Kiri/Kanan */
+  layers?: React.ReactNode;
 }
 
 // Pilihan terakhir pengguna (bertahan saat pindah 3D <-> 2D); null = belum pernah diubah
@@ -21,7 +23,7 @@ const valueCls = 'w-9 shrink-0 font-mono text-[10px] text-right text-zinc-300';
  * Panel kontrol posisi/ukuran sablon. Lebarnya mengikuti layar (rata kiri-kanan),
  * barisnya rapat, dan labelnya tidak turun baris di layar HP.
  */
-export const PlacementPanel: React.FC<PlacementPanelProps> = ({ graphic, onGraphicChange }) => {
+export const PlacementPanel: React.FC<PlacementPanelProps> = ({ graphic, onGraphicChange, layers }) => {
   // Awalnya tertutup di tampilan mobile agar kaos tidak tertutup panel
   const [expanded, setExpandedState] = useState<boolean>(() => lastExpanded ?? isDesktopViewport());
   const setExpanded = (value: boolean) => {
@@ -50,6 +52,8 @@ export const PlacementPanel: React.FC<PlacementPanelProps> = ({ graphic, onGraph
 
       {expanded && (
         <div className="flex flex-col gap-1.5 pt-2 mt-1.5 border-t border-zinc-800 text-[11px]">
+          {layers}
+
           {/* Kiri / Kanan */}
           <div className="flex items-center gap-1.5">
             <span className={labelCls}>Kiri/Kanan</span>
