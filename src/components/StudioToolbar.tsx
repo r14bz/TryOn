@@ -39,9 +39,9 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({
   const isDarkStudio = studioBgColor === 'black';
 
   return (
-    <div className="w-full z-20 pointer-events-none p-2 sm:p-3">
+    <div className="w-full z-20 pointer-events-none p-1.5 sm:p-3">
       {/* Container: 2-tier on mobile, single flex row on desktop to PREVENT ANY OVERLAP */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-2 max-w-full">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-1.5 sm:gap-2 max-w-full">
         
         {/* Row 1 (Mobile) / Left Group (Desktop): Mode Switcher + Background & Panel Toggle on mobile */}
         <div className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-2 pointer-events-auto">
@@ -75,7 +75,7 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({
             </button>
           </div>
 
-          {/* Mobile-only right cluster: Background theme & Expand/Collapse toggle */}
+          {/* Mobile-only right cluster: Background theme */}
           <div className="flex sm:hidden items-center gap-1.5 pointer-events-auto">
             <button
               onClick={() => onStudioBgChange(isDarkStudio ? 'white' : 'black')}
@@ -90,30 +90,6 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({
                 <Moon className="w-3.5 h-3.5 text-amber-400" />
               ) : (
                 <Sun className="w-3.5 h-3.5 text-amber-500" />
-              )}
-            </button>
-
-            <button
-              onClick={onToggleCustomizer}
-              title={isCustomizerExpanded ? "Tutup panel (Kanvas Penuh)" : "Buka panel kustomisasi"}
-              className={`h-8 px-2.5 rounded-lg border text-xs font-semibold flex items-center gap-1 shadow-sm transition-all ${
-                !isCustomizerExpanded
-                  ? 'bg-amber-400 text-zinc-950 border-amber-400 shadow-amber-400/20'
-                  : isDarkStudio 
-                  ? 'bg-zinc-900/90 border-zinc-800 text-zinc-300' 
-                  : 'bg-white/90 border-zinc-200 text-zinc-700'
-              }`}
-            >
-              {!isCustomizerExpanded ? (
-                <>
-                  <SlidersHorizontal className="w-3.5 h-3.5" />
-                  <span>Panel</span>
-                </>
-              ) : (
-                <>
-                  <Maximize2 className="w-3.5 h-3.5 text-amber-500" />
-                  <span className="hidden xs:inline">Penuh</span>
-                </>
               )}
             </button>
           </div>

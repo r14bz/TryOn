@@ -675,7 +675,8 @@ export function getPrintPlacement(
   const baseDim = width * (isSleeve ? 0.15 : 0.38);
   const printW = baseDim * graphic.scale;
   const printH = printW * aspect;
-  const extraRot = isSleeve ? dir * 35 : 0;
+  // Sablon lengan tampil tegak (sama dengan tampilan 3D), tidak ikut miring mengikuti lengan di foto
+  const extraRot = 0;
   return { cx, cy, printW, printH, extraRot, isSleeve, range };
 }
 

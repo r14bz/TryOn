@@ -212,7 +212,7 @@ export default function App() {
             : 'flex-1 h-full'
         }`}>
           {/* Unified Non-Overlapping Studio Toolbar */}
-          <div className="absolute top-0 left-0 right-0 z-30 pointer-events-none">
+          <div className="shrink-0 z-30">
             <StudioToolbar
               studioMode={studioMode}
               onModeChange={setStudioMode}
@@ -229,7 +229,7 @@ export default function App() {
           </div>
 
           {/* Render Active Studio Canvas */}
-          <div className="w-full h-full relative">
+          <div className="w-full flex-1 min-h-0 relative">
             {studioMode === '3d' ? (
               <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-zinc-500 text-sm">Memuat studio 3D…</div>}>
               <ThreeDStudio
@@ -424,22 +424,13 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setIsCustomizerExpanded(true)}
-                  className="h-9 px-3 bg-amber-400 text-zinc-950 rounded-lg text-xs font-bold flex items-center gap-1 shadow-md touch-manipulation"
-                >
-                  <ChevronUp className="w-4 h-4" />
-                  <span>Buka Panel</span>
-                </button>
-                <button
-                  onClick={() => setIsExportOpen(true)}
-                  className="h-9 px-3 bg-zinc-900 border border-zinc-800 text-amber-400 rounded-lg text-xs font-semibold flex items-center gap-1 touch-manipulation"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Simpan</span>
-                </button>
-              </div>
+              <button
+                onClick={() => setIsCustomizerExpanded(true)}
+                className="h-9 px-3 bg-amber-400 text-zinc-950 rounded-lg text-xs font-bold flex items-center gap-1 shadow-md touch-manipulation"
+              >
+                <ChevronUp className="w-4 h-4" />
+                <span>Buka Panel</span>
+              </button>
             </div>
 
             {/* Desktop Collapsed Side Rail */}
