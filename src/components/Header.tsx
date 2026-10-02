@@ -26,7 +26,7 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Zone 1: Logo Try-D */}
       <div className="flex items-center min-w-0">
         <a href="/" aria-label="Try-D - Try On Your Design" className="flex items-center shrink-0">
-          <img src={logo} alt="Try-D" width={560} height={193} className="h-10 min-[380px]:h-11 sm:h-12 w-auto select-none" draggable={false} />
+          <img src={logo} alt="Try-D" width={720} height={192} className="h-8 min-[380px]:h-9 min-[400px]:h-11 sm:h-12 w-auto max-w-full object-contain object-left select-none" draggable={false} />
         </a>
       </div>
 
