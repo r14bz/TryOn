@@ -55,8 +55,8 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({
               onClick={() => onModeChange('3d')}
               className={`min-h-[32px] px-2.5 sm:px-3 rounded-lg flex items-center gap-1.5 transition-all touch-manipulation ${
                 studioMode === '3d'
-                  ? 'bg-amber-400 text-zinc-950 font-bold shadow-sm'
-                  : isDarkStudio ? 'hover:text-amber-400 text-zinc-400' : 'hover:text-zinc-900 text-zinc-600'
+                  ? 'bg-brand text-zinc-950 font-bold shadow-sm'
+                  : isDarkStudio ? 'hover:text-brand text-zinc-400' : 'hover:text-zinc-900 text-zinc-600'
               }`}
             >
               <Box className="w-3.5 h-3.5 shrink-0" />
@@ -66,8 +66,8 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({
               onClick={() => onModeChange('2d')}
               className={`min-h-[32px] px-2.5 sm:px-3 rounded-lg flex items-center gap-1.5 transition-all touch-manipulation ${
                 studioMode === '2d'
-                  ? 'bg-amber-400 text-zinc-950 font-bold shadow-sm'
-                  : isDarkStudio ? 'hover:text-amber-400 text-zinc-400' : 'hover:text-zinc-900 text-zinc-600'
+                  ? 'bg-brand text-zinc-950 font-bold shadow-sm'
+                  : isDarkStudio ? 'hover:text-brand text-zinc-400' : 'hover:text-zinc-900 text-zinc-600'
               }`}
             >
               <Image className="w-3.5 h-3.5 shrink-0" />
@@ -87,9 +87,9 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({
               }`}
             >
               {isDarkStudio ? (
-                <Moon className="w-3.5 h-3.5 text-amber-400" />
+                <Moon className="w-3.5 h-3.5 text-brand" />
               ) : (
-                <Sun className="w-3.5 h-3.5 text-amber-500" />
+                <Sun className="w-3.5 h-3.5 text-zinc-900" />
               )}
             </button>
           </div>
@@ -106,8 +106,8 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({
               onClick={() => onSideChange('front')}
               className={`min-h-[30px] sm:min-h-[32px] px-2.5 sm:px-3 rounded-lg transition-all touch-manipulation whitespace-nowrap ${
                 currentSide === 'front'
-                  ? isDarkStudio ? 'bg-zinc-800 text-amber-300 font-bold shadow-sm' : 'bg-zinc-900 text-white font-bold shadow-sm'
-                  : 'hover:text-amber-500'
+                  ? isDarkStudio ? 'bg-zinc-800 text-brand font-bold shadow-sm' : 'bg-zinc-900 text-white font-bold shadow-sm'
+                  : isDarkStudio ? 'hover:text-brand' : 'hover:text-zinc-900'
               }`}
             >
               Depan
@@ -117,8 +117,8 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({
                 onClick={() => onSideChange('sleeve_left')}
                 className={`min-h-[30px] sm:min-h-[32px] px-2.5 sm:px-3 rounded-lg transition-all touch-manipulation whitespace-nowrap ${
                   currentSide === 'sleeve_left'
-                    ? isDarkStudio ? 'bg-zinc-800 text-amber-300 font-bold shadow-sm' : 'bg-zinc-900 text-white font-bold shadow-sm'
-                    : 'hover:text-amber-500'
+                    ? isDarkStudio ? 'bg-zinc-800 text-brand font-bold shadow-sm' : 'bg-zinc-900 text-white font-bold shadow-sm'
+                    : isDarkStudio ? 'hover:text-brand' : 'hover:text-zinc-900'
                 }`}
               >
                 Lengan Kiri
@@ -128,8 +128,8 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({
               onClick={() => onSideChange('back')}
               className={`min-h-[30px] sm:min-h-[32px] px-2.5 sm:px-3 rounded-lg transition-all touch-manipulation whitespace-nowrap ${
                 currentSide === 'back'
-                  ? isDarkStudio ? 'bg-zinc-800 text-amber-300 font-bold shadow-sm' : 'bg-zinc-900 text-white font-bold shadow-sm'
-                  : 'hover:text-amber-500'
+                  ? isDarkStudio ? 'bg-zinc-800 text-brand font-bold shadow-sm' : 'bg-zinc-900 text-white font-bold shadow-sm'
+                  : isDarkStudio ? 'hover:text-brand' : 'hover:text-zinc-900'
               }`}
             >
               Belakang
@@ -139,8 +139,8 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({
                 onClick={() => onSideChange('sleeve_right')}
                 className={`min-h-[30px] sm:min-h-[32px] px-2.5 sm:px-3 rounded-lg transition-all touch-manipulation whitespace-nowrap ${
                   currentSide === 'sleeve_right'
-                    ? isDarkStudio ? 'bg-zinc-800 text-amber-300 font-bold shadow-sm' : 'bg-zinc-900 text-white font-bold shadow-sm'
-                    : 'hover:text-amber-500'
+                    ? isDarkStudio ? 'bg-zinc-800 text-brand font-bold shadow-sm' : 'bg-zinc-900 text-white font-bold shadow-sm'
+                    : isDarkStudio ? 'hover:text-brand' : 'hover:text-zinc-900'
                 }`}
               >
                 Lengan Kanan
@@ -154,7 +154,7 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({
           <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-mono shadow-sm border ${
             isDarkStudio ? 'bg-zinc-900/90 border-zinc-800 text-zinc-300' : 'bg-white/90 border-zinc-200 text-zinc-700'
           }`}>
-            <span className="font-bold text-amber-500">{printWidthCm}×{printHeightCm} cm</span>
+            <span className={`font-bold ${isDarkStudio ? 'text-brand' : 'text-zinc-900'}`}>{printWidthCm}×{printHeightCm} cm</span>
             <span className="text-zinc-400">·</span>
             <span>{garmentSize.size}</span>
           </div>
@@ -171,12 +171,12 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({
           >
             {isDarkStudio ? (
               <>
-                <Moon className="w-3.5 h-3.5 text-amber-400" />
+                <Moon className="w-3.5 h-3.5 text-brand" />
                 <span className="hidden md:inline">Studio Hitam</span>
               </>
             ) : (
               <>
-                <Sun className="w-3.5 h-3.5 text-amber-500" />
+                <Sun className="w-3.5 h-3.5 text-zinc-900" />
                 <span className="hidden md:inline">Studio Putih</span>
               </>
             )}
@@ -188,7 +188,7 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({
             title={isCustomizerExpanded ? "Sembunyikan panel kustomisasi (Kanvas Penuh)" : "Tampilkan panel kustomisasi"}
             className={`min-h-[32px] px-2.5 rounded-xl border flex items-center gap-1.5 text-xs font-semibold shadow-sm transition-all touch-manipulation ${
               !isCustomizerExpanded
-                ? 'bg-amber-400 text-zinc-950 border-amber-400 font-bold shadow-amber-400/20'
+                ? 'bg-brand text-zinc-950 border-brand font-bold shadow-brand/20'
                 : isDarkStudio 
                 ? 'bg-zinc-900/90 text-zinc-300 border-zinc-800 hover:bg-zinc-800' 
                 : 'bg-white/90 text-zinc-700 border-zinc-200 hover:bg-zinc-100'
@@ -201,7 +201,7 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({
               </>
             ) : (
               <>
-                <Maximize2 className="w-3.5 h-3.5 text-amber-500" />
+                <Maximize2 className={`w-3.5 h-3.5 ${isDarkStudio ? 'text-brand' : 'text-zinc-900'}`} />
                 <span className="hidden lg:inline">Kanvas Penuh</span>
               </>
             )}

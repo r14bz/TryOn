@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Warna utama Try-D (sama dengan kuning pada logo) */
+@theme {
+  --color-brand: #FFFC00;
+}
+
 @layer base {
   :root {
     --font-display: 'Syne', sans-serif;

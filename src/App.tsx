@@ -288,7 +288,7 @@ export default function App() {
                   onClick={() => handleTabClick('graphic')}
                   className={`flex-1 min-h-[44px] py-2.5 text-xs font-semibold flex items-center justify-center gap-1.5 border-b-2 transition-colors touch-manipulation ${
                     activeSidebarTab === 'graphic'
-                      ? 'border-amber-400 text-white font-bold'
+                      ? 'border-brand text-white font-bold'
                       : 'border-transparent text-zinc-400 hover:text-zinc-200'
                   }`}
                 >
@@ -299,7 +299,7 @@ export default function App() {
                   onClick={() => handleTabClick('fabric')}
                   className={`flex-1 min-h-[44px] py-2.5 text-xs font-semibold flex items-center justify-center gap-1.5 border-b-2 transition-colors touch-manipulation ${
                     activeSidebarTab === 'fabric'
-                      ? 'border-amber-400 text-white font-bold'
+                      ? 'border-brand text-white font-bold'
                       : 'border-transparent text-zinc-400 hover:text-zinc-200'
                   }`}
                 >
@@ -310,7 +310,7 @@ export default function App() {
                   onClick={() => handleTabClick('technique')}
                   className={`flex-1 min-h-[44px] py-2.5 text-xs font-semibold flex items-center justify-center gap-1.5 border-b-2 transition-colors touch-manipulation ${
                     activeSidebarTab === 'technique'
-                      ? 'border-amber-400 text-white font-bold'
+                      ? 'border-brand text-white font-bold'
                       : 'border-transparent text-zinc-400 hover:text-zinc-200'
                   }`}
                 >
@@ -323,11 +323,11 @@ export default function App() {
               <button
                 onClick={() => setIsCustomizerExpanded(false)}
                 title="Sembunyikan panel (tampilan kanvas penuh)"
-                className="ml-1 min-h-[36px] px-2 text-zinc-400 hover:text-amber-400 hover:bg-zinc-900 rounded-lg flex items-center gap-1 transition-colors text-xs shrink-0 touch-manipulation"
+                className="ml-1 min-h-[36px] px-2 text-zinc-400 hover:text-brand hover:bg-zinc-900 rounded-lg flex items-center gap-1 transition-colors text-xs shrink-0 touch-manipulation"
               >
                 <span className="hidden sm:inline text-[11px] font-medium">Tutup</span>
-                <ChevronDown className="w-4 h-4 sm:hidden text-amber-400" />
-                <ChevronRight className="w-4 h-4 hidden sm:inline text-amber-400" />
+                <ChevronDown className="w-4 h-4 sm:hidden text-brand" />
+                <ChevronRight className="w-4 h-4 hidden sm:inline text-brand" />
               </button>
             </div>
 
@@ -376,7 +376,7 @@ export default function App() {
                   Estimasi Satuan
                 </span>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-sm sm:text-base font-bold font-mono text-amber-400">
+                  <span className="text-sm sm:text-base font-bold font-mono text-brand">
                     Rp {unitEstimate.toLocaleString('id-ID')}
                   </span>
                   <span className="text-[10px] text-zinc-400">/ pcs</span>
@@ -388,13 +388,13 @@ export default function App() {
                   onClick={() => setIsQuoteModalOpen(true)}
                   className="min-h-[40px] px-3 text-xs font-medium text-zinc-300 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 rounded-xl transition-colors touch-manipulation flex items-center gap-1.5"
                 >
-                  <Calculator className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <Calculator className="w-3.5 h-3.5 text-brand shrink-0" />
                   <span className="hidden sm:inline">Rincian</span>
                 </button>
 
                 <button
                   onClick={() => setIsExportOpen(true)}
-                  className="min-h-[40px] px-3.5 sm:px-4 text-xs font-semibold text-zinc-950 bg-amber-400 hover:bg-amber-300 rounded-xl shadow-md shadow-amber-400/20 active:scale-95 transition-all touch-manipulation flex items-center gap-1.5 whitespace-nowrap"
+                  className="min-h-[40px] px-3.5 sm:px-4 text-xs font-semibold text-zinc-950 bg-brand hover:bg-brand/85 rounded-xl shadow-md shadow-brand/20 active:scale-95 transition-all touch-manipulation flex items-center gap-1.5 whitespace-nowrap"
                 >
                   <Download className="w-3.5 h-3.5 shrink-0" />
                   <span>Simpan Gambar</span>
@@ -412,28 +412,28 @@ export default function App() {
                   onClick={() => handleTabClick('graphic')}
                   className="h-9 px-2.5 rounded-lg border border-zinc-800 bg-zinc-900 text-xs font-medium text-zinc-300 hover:text-white flex items-center gap-1.5 touch-manipulation"
                 >
-                  <ImageIcon className="w-3.5 h-3.5 text-amber-400" />
+                  <ImageIcon className="w-3.5 h-3.5 text-brand" />
                   <span>Desain</span>
                 </button>
                 <button
                   onClick={() => handleTabClick('fabric')}
                   className="h-9 px-2.5 rounded-lg border border-zinc-800 bg-zinc-900 text-xs font-medium text-zinc-300 hover:text-white flex items-center gap-1.5 touch-manipulation"
                 >
-                  <Palette className="w-3.5 h-3.5 text-amber-400" />
+                  <Palette className="w-3.5 h-3.5 text-brand" />
                   <span>Warna</span>
                 </button>
                 <button
                   onClick={() => handleTabClick('technique')}
                   className="h-9 px-2.5 rounded-lg border border-zinc-800 bg-zinc-900 text-xs font-medium text-zinc-300 hover:text-white flex items-center gap-1.5 touch-manipulation"
                 >
-                  <Layers className="w-3.5 h-3.5 text-amber-400" />
+                  <Layers className="w-3.5 h-3.5 text-brand" />
                   <span>Sablon</span>
                 </button>
               </div>
 
               <button
                 onClick={() => setIsCustomizerExpanded(true)}
-                className="h-9 px-3 bg-amber-400 text-zinc-950 rounded-lg text-xs font-bold flex items-center gap-1 shadow-md touch-manipulation"
+                className="h-9 px-3 bg-brand text-zinc-950 rounded-lg text-xs font-bold flex items-center gap-1 shadow-md touch-manipulation"
               >
                 <ChevronUp className="w-4 h-4" />
                 <span>Buka Panel</span>
@@ -446,7 +446,7 @@ export default function App() {
                 <button
                   onClick={() => setIsCustomizerExpanded(true)}
                   title="Buka Panel Kustomisasi"
-                  className="w-10 h-10 rounded-xl bg-amber-400 text-zinc-950 flex items-center justify-center shadow-md hover:bg-amber-300 transition-all touch-manipulation"
+                  className="w-10 h-10 rounded-xl bg-brand text-zinc-950 flex items-center justify-center shadow-md hover:bg-brand/85 transition-all touch-manipulation"
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
@@ -456,25 +456,25 @@ export default function App() {
                 <button
                   onClick={() => handleTabClick('graphic')}
                   title="Buka Tab Desain Sablon"
-                  className="w-10 h-10 rounded-xl border border-zinc-800 hover:border-amber-400/60 bg-zinc-900/60 text-zinc-400 hover:text-white flex items-center justify-center transition-colors"
+                  className="w-10 h-10 rounded-xl border border-zinc-800 hover:border-brand/60 bg-zinc-900/60 text-zinc-400 hover:text-white flex items-center justify-center transition-colors"
                 >
-                  <ImageIcon className="w-4 h-4 text-amber-400" />
+                  <ImageIcon className="w-4 h-4 text-brand" />
                 </button>
 
                 <button
                   onClick={() => handleTabClick('fabric')}
                   title="Buka Tab Warna & Bahan"
-                  className="w-10 h-10 rounded-xl border border-zinc-800 hover:border-amber-400/60 bg-zinc-900/60 text-zinc-400 hover:text-white flex items-center justify-center transition-colors"
+                  className="w-10 h-10 rounded-xl border border-zinc-800 hover:border-brand/60 bg-zinc-900/60 text-zinc-400 hover:text-white flex items-center justify-center transition-colors"
                 >
-                  <Palette className="w-4 h-4 text-amber-400" />
+                  <Palette className="w-4 h-4 text-brand" />
                 </button>
 
                 <button
                   onClick={() => handleTabClick('technique')}
                   title="Buka Tab Teknik Sablon"
-                  className="w-10 h-10 rounded-xl border border-zinc-800 hover:border-amber-400/60 bg-zinc-900/60 text-zinc-400 hover:text-white flex items-center justify-center transition-colors"
+                  className="w-10 h-10 rounded-xl border border-zinc-800 hover:border-brand/60 bg-zinc-900/60 text-zinc-400 hover:text-white flex items-center justify-center transition-colors"
                 >
-                  <Layers className="w-4 h-4 text-amber-400" />
+                  <Layers className="w-4 h-4 text-brand" />
                 </button>
               </div>
 
@@ -482,7 +482,7 @@ export default function App() {
                 <button
                   onClick={() => setIsExportOpen(true)}
                   title="Simpan Gambar Desain (Resolusi Tinggi)"
-                  className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-amber-400 text-amber-400 flex items-center justify-center transition-all"
+                  className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-brand text-brand flex items-center justify-center transition-all"
                 >
                   <Download className="w-4 h-4" />
                 </button>

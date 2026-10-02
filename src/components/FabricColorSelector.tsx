@@ -51,7 +51,7 @@ export const FabricColorSelector: React.FC<FabricColorSelectorProps> = ({
           <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
             Warna Kaos Polos
           </label>
-          <span className="text-xs text-amber-400 font-medium">
+          <span className="text-xs text-brand font-medium">
             {selectedColor.name}
           </span>
         </div>
@@ -90,7 +90,7 @@ export const FabricColorSelector: React.FC<FabricColorSelectorProps> = ({
                 title={col.name}
                 className={`relative min-h-[44px] aspect-square rounded-xl transition-transform border flex items-center justify-center touch-manipulation active:scale-95 ${
                   isSelected
-                    ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-zinc-950 scale-105 border-white shadow-md'
+                    ? 'ring-2 ring-brand ring-offset-2 ring-offset-zinc-950 scale-105 border-white shadow-md'
                     : 'border-zinc-800 hover:scale-105'
                 }`}
                 style={{ backgroundColor: col.hex }}
@@ -146,7 +146,7 @@ export const FabricColorSelector: React.FC<FabricColorSelectorProps> = ({
                 onClick={() => onFabricSelect(fab)}
                 className={`p-3.5 rounded-xl border text-left cursor-pointer transition-all ${
                   isSelected
-                    ? 'bg-zinc-900 border-amber-500 ring-1 ring-amber-500/30 shadow-lg shadow-amber-500/5'
+                    ? 'bg-zinc-900 border-brand ring-1 ring-brand/30 shadow-lg shadow-brand/5'
                     : 'bg-zinc-900/50 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900/80'
                 }`}
               >
@@ -154,7 +154,7 @@ export const FabricColorSelector: React.FC<FabricColorSelectorProps> = ({
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-white">{fab.name}</span>
-                      <span className="text-[10px] font-mono text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded">
+                      <span className="text-[10px] font-mono text-brand bg-brand/10 px-1.5 py-0.5 rounded">
                         {fab.gsm}
                       </span>
                     </div>
@@ -176,7 +176,7 @@ export const FabricColorSelector: React.FC<FabricColorSelectorProps> = ({
                         <div
                           key={i}
                           className={`w-2.5 h-1.5 rounded-sm ${
-                            i <= fab.softness ? 'bg-amber-400' : 'bg-zinc-800'
+                            i <= fab.softness ? 'bg-brand' : 'bg-zinc-800'
                           }`}
                         />
                       ))}
@@ -189,7 +189,7 @@ export const FabricColorSelector: React.FC<FabricColorSelectorProps> = ({
                         <div
                           key={i}
                           className={`w-2.5 h-1.5 rounded-sm ${
-                            i <= fab.thickness ? 'bg-amber-400' : 'bg-zinc-800'
+                            i <= fab.thickness ? 'bg-brand' : 'bg-zinc-800'
                           }`}
                         />
                       ))}
@@ -202,7 +202,7 @@ export const FabricColorSelector: React.FC<FabricColorSelectorProps> = ({
                         <div
                           key={i}
                           className={`w-2.5 h-1.5 rounded-sm ${
-                            i <= fab.breathability ? 'bg-amber-400' : 'bg-zinc-800'
+                            i <= fab.breathability ? 'bg-brand' : 'bg-zinc-800'
                           }`}
                         />
                       ))}
@@ -221,7 +221,7 @@ export const FabricColorSelector: React.FC<FabricColorSelectorProps> = ({
                       e.stopPropagation();
                       onInspectDetail(fab);
                     }}
-                    className="text-amber-400 hover:text-amber-300 font-medium underline underline-offset-2 flex items-center gap-0.5"
+                    className="text-brand hover:text-brand/80 font-medium underline underline-offset-2 flex items-center gap-0.5"
                   >
                     Detail Serat →
                   </button>
@@ -252,7 +252,7 @@ export const FabricColorSelector: React.FC<FabricColorSelectorProps> = ({
                 onClick={() => onSizeSelect(sz)}
                 className={`min-h-[44px] py-1.5 rounded-xl border text-center transition-all touch-manipulation active:scale-95 ${
                   isSelected
-                    ? 'bg-zinc-800 border-amber-500 text-white font-bold shadow-sm'
+                    ? 'bg-zinc-800 border-brand text-white font-bold shadow-sm'
                     : 'bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:text-zinc-200'
                 }`}
               >

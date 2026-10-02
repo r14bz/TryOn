@@ -91,7 +91,7 @@ export const PriceQuoteModal: React.FC<PriceQuoteModalProps> = ({
     }
 
     // 3. Header Spec Title
-    ctx.fillStyle = '#F59E0B';
+    ctx.fillStyle = '#FFFC00';
     ctx.font = 'bold 32px "Plus Jakarta Sans", sans-serif';
     ctx.fillText('LEMBAR SPESIFIKASI PRODUKSI SABLON', 60, 80);
 
@@ -108,7 +108,7 @@ export const PriceQuoteModal: React.FC<PriceQuoteModalProps> = ({
       ctx.font = '14px "JetBrains Mono", monospace';
       ctx.fillText(label.toUpperCase(), rx, ry);
 
-      ctx.fillStyle = highlight ? '#F59E0B' : '#FFFFFF';
+      ctx.fillStyle = highlight ? '#FFFC00' : '#FFFFFF';
       ctx.font = 'bold 18px "Plus Jakarta Sans", sans-serif';
       ctx.fillText(value, rx, ry + 24);
 
@@ -158,7 +158,7 @@ export const PriceQuoteModal: React.FC<PriceQuoteModalProps> = ({
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-zinc-800 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <Calculator className="w-5 h-5 text-amber-400 shrink-0" />
+            <Calculator className="w-5 h-5 text-brand shrink-0" />
             <div>
               <h2 className="text-sm sm:text-base font-bold text-white font-display">
                 Kalkulator &amp; Estimasi Biaya Sablon
@@ -195,7 +195,7 @@ export const PriceQuoteModal: React.FC<PriceQuoteModalProps> = ({
                   onClick={() => setQuantity(item.qty)}
                   className={`min-h-[50px] p-2 rounded-xl border text-center transition-all touch-manipulation active:scale-[0.98] ${
                     quantity === item.qty
-                      ? 'bg-zinc-800 border-amber-500 text-white font-bold shadow-sm'
+                      ? 'bg-zinc-800 border-brand text-white font-bold shadow-sm'
                       : 'border-zinc-800 text-zinc-400 hover:text-white bg-zinc-950/40'
                   }`}
                 >
@@ -228,13 +228,13 @@ export const PriceQuoteModal: React.FC<PriceQuoteModalProps> = ({
             )}
             <div className="pt-2.5 border-t border-zinc-800 flex justify-between items-center text-sm font-bold text-white">
               <span>Harga Satuan Net:</span>
-              <span className="font-mono text-amber-400">
+              <span className="font-mono text-brand">
                 Rp {unitPrice.toLocaleString('id-ID')} / pcs
               </span>
             </div>
             <div className="flex justify-between items-center text-base font-bold text-white pt-1">
               <span>Total Estimasi ({quantity} pcs):</span>
-              <span className="font-mono text-amber-400">
+              <span className="font-mono text-brand">
                 Rp {subtotal.toLocaleString('id-ID')}
               </span>
             </div>
@@ -260,7 +260,7 @@ export const PriceQuoteModal: React.FC<PriceQuoteModalProps> = ({
           <button
             onClick={downloadSpecSheet}
             disabled={isExporting}
-            className="px-4 py-2 text-xs font-semibold text-zinc-950 bg-amber-400 hover:bg-amber-300 rounded-lg transition-colors flex items-center gap-2 shadow-lg shadow-amber-400/20"
+            className="px-4 py-2 text-xs font-semibold text-zinc-950 bg-brand hover:bg-brand/85 rounded-lg transition-colors flex items-center gap-2 shadow-lg shadow-brand/20"
           >
             <Download className="w-4 h-4" />
             <span>Download Lembar Spesifikasi (PNG)</span>

@@ -30,7 +30,7 @@ export const TextureInspectModal: React.FC<TextureInspectModalProps> = ({
               <h2 className="text-sm sm:text-base font-bold text-white font-display">
                 Inspeksi Makro Serat Kain
               </h2>
-              <span className="text-[10px] font-mono text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded">
+              <span className="text-[10px] font-mono text-brand bg-brand/10 px-2 py-0.5 rounded">
                 {activeFabric.gsm}
               </span>
             </div>
@@ -58,7 +58,7 @@ export const TextureInspectModal: React.FC<TextureInspectModalProps> = ({
                   onClick={() => setActiveFabric(f)}
                   className={`min-h-[44px] p-2.5 rounded-xl border text-left text-xs transition-all touch-manipulation active:scale-[0.98] ${
                     isActive
-                      ? 'bg-zinc-800 border-amber-500 text-white font-semibold shadow-sm'
+                      ? 'bg-zinc-800 border-brand text-white font-semibold shadow-sm'
                       : 'border-zinc-800 text-zinc-400 hover:text-white bg-zinc-950/40'
                   }`}
                 >
@@ -96,7 +96,7 @@ export const TextureInspectModal: React.FC<TextureInspectModalProps> = ({
 
             {/* Central Macro Loupe Badge */}
             <div className="relative z-10 bg-zinc-950/80 backdrop-blur-md border border-zinc-700/80 rounded-xl p-4 text-center max-w-sm">
-              <span className="text-[11px] font-mono uppercase tracking-wider text-amber-400 block mb-1">
+              <span className="text-[11px] font-mono uppercase tracking-wider text-brand block mb-1">
                 Visual Makro: {activeFabric.name}
               </span>
               <p className="text-xs text-zinc-300 leading-relaxed">
@@ -112,7 +112,7 @@ export const TextureInspectModal: React.FC<TextureInspectModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="p-3 rounded-xl bg-zinc-950/50 border border-zinc-800">
               <div className="flex items-center gap-1.5 text-zinc-400 text-xs mb-1">
-                <Wind className="w-3.5 h-3.5 text-amber-400" />
+                <Wind className="w-3.5 h-3.5 text-brand" />
                 <span className="font-semibold text-zinc-200">Sirkulasi Tropis</span>
               </div>
               <p className="text-[11px] text-zinc-400">
@@ -124,7 +124,7 @@ export const TextureInspectModal: React.FC<TextureInspectModalProps> = ({
 
             <div className="p-3 rounded-xl bg-zinc-950/50 border border-zinc-800">
               <div className="flex items-center gap-1.5 text-zinc-400 text-xs mb-1">
-                <Droplets className="w-3.5 h-3.5 text-amber-400" />
+                <Droplets className="w-3.5 h-3.5 text-brand" />
                 <span className="font-semibold text-zinc-200">Daya Ikat Sablon</span>
               </div>
               <p className="text-[11px] text-zinc-400">
@@ -136,7 +136,7 @@ export const TextureInspectModal: React.FC<TextureInspectModalProps> = ({
 
             <div className="p-3 rounded-xl bg-zinc-950/50 border border-zinc-800">
               <div className="flex items-center gap-1.5 text-zinc-400 text-xs mb-1">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <Sparkles className="w-3.5 h-3.5 text-brand" />
                 <span className="font-semibold text-zinc-200">Karakter Jatuh (Drape)</span>
               </div>
               <p className="text-[11px] text-zinc-400">
@@ -155,7 +155,7 @@ export const TextureInspectModal: React.FC<TextureInspectModalProps> = ({
             <p className="text-xs text-zinc-300 leading-relaxed mb-2">
               {activeFabric.description}
             </p>
-            <div className="text-xs text-amber-400/90 font-medium">
+            <div className="text-xs text-brand/90 font-medium">
               💡 Rekomendasi: {activeFabric.recommendedFor}
             </div>
           </div>
@@ -181,7 +181,7 @@ export const TextureInspectModal: React.FC<TextureInspectModalProps> = ({
                 onSelectFabric(activeFabric);
                 onClose();
               }}
-              className="px-4 py-2 text-xs font-semibold text-zinc-950 bg-amber-400 hover:bg-amber-300 rounded-lg transition-colors flex items-center gap-1.5"
+              className="px-4 py-2 text-xs font-semibold text-zinc-950 bg-brand hover:bg-brand/85 rounded-lg transition-colors flex items-center gap-1.5"
             >
               <Check className="w-3.5 h-3.5" />
               Gunakan Bahan Ini

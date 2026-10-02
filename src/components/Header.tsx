@@ -72,13 +72,13 @@ export const Header: React.FC<HeaderProps> = ({
           aria-label="Hitung biaya"
           className="h-8 min-w-8 px-2 sm:px-3 text-[11px] sm:text-xs font-medium text-zinc-300 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition-colors whitespace-nowrap flex items-center justify-center gap-1.5 touch-manipulation"
         >
-          <Calculator className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          <Calculator className="w-3.5 h-3.5 text-brand shrink-0" />
           <span className="hidden sm:inline">Hitung Biaya</span>
         </button>
 
         <button
           onClick={onOpenExport}
-          className="h-8 px-2.5 sm:px-3 text-[11px] sm:text-xs font-semibold text-zinc-950 bg-amber-400 hover:bg-amber-300 rounded-lg shadow-sm active:scale-95 transition-all whitespace-nowrap flex items-center gap-1 touch-manipulation"
+          className="h-8 px-2.5 sm:px-3 text-[11px] sm:text-xs font-semibold text-zinc-950 bg-brand hover:bg-brand/85 rounded-lg shadow-sm active:scale-95 transition-all whitespace-nowrap flex items-center gap-1 touch-manipulation"
         >
           <Download className="w-3.5 h-3.5 shrink-0" />
           <span>
@@ -92,7 +92,7 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => (installMode === 'prompt' ? install() : setShowIosHint((v) => !v))}
               title="Install aplikasi Try-D"
               aria-label="Install aplikasi Try-D"
-              className="h-8 min-w-8 px-2 sm:px-3 text-[11px] sm:text-xs font-semibold text-amber-300 bg-zinc-900 hover:bg-zinc-800 border border-amber-400/40 rounded-lg transition-colors whitespace-nowrap flex items-center justify-center gap-1.5 touch-manipulation"
+              className="h-8 min-w-8 px-2 sm:px-3 text-[11px] sm:text-xs font-semibold text-brand bg-zinc-900 hover:bg-zinc-800 border border-brand/40 rounded-lg transition-colors whitespace-nowrap flex items-center justify-center gap-1.5 touch-manipulation"
             >
               <Smartphone className="w-3.5 h-3.5 shrink-0" />
               <span className="hidden sm:inline">Install</span>

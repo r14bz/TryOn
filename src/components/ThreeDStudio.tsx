@@ -487,14 +487,14 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
       {/* Loading Overlay */}
       {!isModelLoaded && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/20 backdrop-blur-sm pointer-events-none z-10">
-          <div className="w-9 h-9 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mb-2" />
+          <div className="w-9 h-9 border-2 border-brand border-t-transparent rounded-full animate-spin mb-2" />
           <span className="text-xs font-semibold text-zinc-200">Memuat Model 3D Kaos...</span>
         </div>
       )}
 
       {/* Petunjuk saat mode geser sablon aktif */}
       {interactMode === 'graphic' && (
-        <div className="absolute left-2 top-2 z-20 h-9 px-2.5 rounded-xl bg-amber-400 text-zinc-950 text-[11px] font-bold flex items-center gap-1.5 shadow-lg pointer-events-none">
+        <div className="absolute left-2 top-2 z-20 h-9 px-2.5 rounded-xl bg-brand text-zinc-950 text-[11px] font-bold flex items-center gap-1.5 shadow-lg pointer-events-none">
           <Move className="w-3.5 h-3.5 shrink-0" />
           <span className="whitespace-nowrap">Geser sablon</span>
         </div>
@@ -519,7 +519,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
           title="Perbesar Kaos 3D (Zoom In)"
           className="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors touch-manipulation"
         >
-          <ZoomIn className="w-4 h-4 text-amber-500" />
+          <ZoomIn className={`w-4 h-4 ${studioBgColor === 'white' ? 'text-zinc-900' : 'text-brand'}`} />
         </button>
 
         <button
@@ -527,7 +527,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
           title="Perkecil Kaos 3D (Zoom Out)"
           className="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors touch-manipulation"
         >
-          <ZoomOut className="w-4 h-4 text-amber-500" />
+          <ZoomOut className={`w-4 h-4 ${studioBgColor === 'white' ? 'text-zinc-900' : 'text-brand'}`} />
         </button>
 
         <div className={`w-[1px] h-5 sm:w-5 sm:h-[1px] ${studioBgColor === 'white' ? 'bg-zinc-200' : 'bg-zinc-800'}`} />
@@ -536,7 +536,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
           onClick={() => setIsAutoRotating(!isAutoRotating)}
           title="Putar Otomatis 360°"
           className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors touch-manipulation ${
-            isAutoRotating ? 'bg-amber-400 text-zinc-950 font-bold' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'
+            isAutoRotating ? 'bg-brand text-zinc-950 font-bold' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'
           }`}
         >
           {isAutoRotating ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
@@ -547,7 +547,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
           title={interactMode === 'graphic' ? 'Mode geser sablon aktif (ketuk untuk kembali memutar kaos)' : 'Geser sablon dengan jari'}
           aria-pressed={interactMode === 'graphic'}
           className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors touch-manipulation ${
-            interactMode === 'graphic' ? 'bg-amber-400 text-zinc-950 font-bold' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'
+            interactMode === 'graphic' ? 'bg-brand text-zinc-950 font-bold' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'
           }`}
         >
           <Move className="w-4 h-4" />

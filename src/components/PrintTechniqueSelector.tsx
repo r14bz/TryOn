@@ -19,7 +19,7 @@ export const PrintTechniqueSelector: React.FC<PrintTechniqueSelectorProps> = ({
           <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
             Teknologi &amp; Jenis Sablon
           </label>
-          <span className="text-[11px] text-amber-400 font-medium">
+          <span className="text-[11px] text-brand font-medium">
             {selectedTechnique.name}
           </span>
         </div>
@@ -37,7 +37,7 @@ export const PrintTechniqueSelector: React.FC<PrintTechniqueSelectorProps> = ({
               onClick={() => onSelect(tech)}
               className={`p-3.5 rounded-xl border text-left cursor-pointer transition-all ${
                 isSelected
-                  ? 'bg-zinc-900 border-amber-500 ring-1 ring-amber-500/30 shadow-lg shadow-amber-500/5'
+                  ? 'bg-zinc-900 border-brand ring-1 ring-brand/30 shadow-lg shadow-brand/5'
                   : 'bg-zinc-900/50 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900/80'
               }`}
             >
@@ -51,7 +51,7 @@ export const PrintTechniqueSelector: React.FC<PrintTechniqueSelectorProps> = ({
                       </span>
                     )}
                     {tech.id === 'plastisol' && (
-                      <span className="text-[10px] font-mono text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded">
+                      <span className="text-[10px] font-mono text-brand bg-brand/10 px-1.5 py-0.5 rounded">
                         Distro Standard
                       </span>
                     )}

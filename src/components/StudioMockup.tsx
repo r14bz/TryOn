@@ -208,7 +208,7 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
 
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-zinc-950/20 backdrop-blur-[2px] pointer-events-none">
-            <div className="w-8 h-8 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
           </div>
         )}
       </div>
@@ -232,7 +232,7 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
           title="Perbesar Tampilan Kaos (Zoom In)"
           className="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors touch-manipulation"
         >
-          <ZoomIn className="w-4 h-4 text-amber-500" />
+          <ZoomIn className={`w-4 h-4 ${studioBgColor === 'white' ? 'text-zinc-900' : 'text-brand'}`} />
         </button>
 
         <button
@@ -240,7 +240,7 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
           title="Perkecil Tampilan Kaos (Zoom Out)"
           className="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors touch-manipulation"
         >
-          <ZoomOut className="w-4 h-4 text-amber-500" />
+          <ZoomOut className={`w-4 h-4 ${studioBgColor === 'white' ? 'text-zinc-900' : 'text-brand'}`} />
         </button>
 
         <div className={`w-[1px] h-5 sm:w-5 sm:h-[1px] ${studioBgColor === 'white' ? 'bg-zinc-200' : 'bg-zinc-800'}`} />

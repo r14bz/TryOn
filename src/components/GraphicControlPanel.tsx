@@ -139,7 +139,7 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
                   onClick={() => onSelect(g.id)}
                   className={`flex items-center gap-2 p-1.5 rounded-xl border cursor-pointer transition-colors ${
                     isActive
-                      ? 'border-amber-500/70 bg-amber-400/10'
+                      ? 'border-brand/70 bg-brand/10'
                       : 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-700'
                   }`}
                 >
@@ -154,7 +154,7 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
                     <div className={`text-xs font-semibold truncate ${isActive ? 'text-white' : 'text-zinc-300'}`}>
                       {g.imageName}
                     </div>
-                    <div className="text-[10px] text-amber-400/90 font-mono">{SIDE_SHORT[g.side]}</div>
+                    <div className="text-[10px] text-brand/90 font-mono">{SIDE_SHORT[g.side]}</div>
                   </div>
                   <div className="flex items-center shrink-0" onClick={(e) => e.stopPropagation()}>
                     <button
@@ -200,7 +200,7 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={isFull || isUploading}
-          className="w-full border-2 border-dashed border-zinc-800 hover:border-amber-500/60 bg-zinc-900/60 hover:bg-zinc-900 disabled:opacity-50 disabled:hover:border-zinc-800 transition-all rounded-xl p-3 flex items-center justify-center gap-3 group text-left touch-manipulation"
+          className="w-full border-2 border-dashed border-zinc-800 hover:border-brand/60 bg-zinc-900/60 hover:bg-zinc-900 disabled:opacity-50 disabled:hover:border-zinc-800 transition-all rounded-xl p-3 flex items-center justify-center gap-3 group text-left touch-manipulation"
         >
           <input
             ref={fileInputRef}
@@ -210,7 +210,7 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
             onChange={handleFileUpload}
             className="hidden"
           />
-          <div className="w-9 h-9 rounded-full bg-zinc-800 group-hover:bg-amber-500/20 text-zinc-400 group-hover:text-amber-400 flex items-center justify-center shrink-0 transition-colors">
+          <div className="w-9 h-9 rounded-full bg-zinc-800 group-hover:bg-brand/20 text-zinc-400 group-hover:text-brand flex items-center justify-center shrink-0 transition-colors">
             {isUploading ? <Plus className="w-5 h-5 animate-pulse" /> : <Upload className="w-5 h-5" />}
           </div>
           <div>
@@ -247,7 +247,7 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
                 onClick={() => addSampleArtwork(sample)}
                 className={`group relative aspect-square rounded-lg p-1.5 border transition-all flex flex-col items-center justify-center bg-zinc-900 ${
                   isSelected
-                    ? 'border-amber-500 ring-2 ring-amber-500/20 shadow-md'
+                    ? 'border-brand ring-2 ring-brand/20 shadow-md'
                     : 'border-zinc-800 hover:border-zinc-700'
                 }`}
                 title={sample.name}
@@ -266,7 +266,7 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
       {graphic ? (
         <>
           <div className="text-[11px] text-zinc-500 -mb-3">
-            Pengaturan untuk: <span className="text-amber-400 font-semibold">{graphic.imageName}</span>
+            Pengaturan untuk: <span className="text-brand font-semibold">{graphic.imageName}</span>
           </div>
           {/* 3. Placement Side Selector */}
           <div>
@@ -274,7 +274,7 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
               <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
                 Posisi Bagian Kaos
               </label>
-              <span className="text-[10px] font-mono text-amber-400 font-semibold">
+              <span className="text-[10px] font-mono text-brand font-semibold">
                 {getSideLabel(graphic.side)}
               </span>
             </div>
@@ -285,7 +285,7 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
                 }}
                 className={`min-h-[36px] py-1.5 px-2 text-xs font-medium rounded-lg transition-all ${
                   graphic.side === 'front' 
-                    ? 'bg-amber-400 text-zinc-950 font-bold shadow-sm' 
+                    ? 'bg-brand text-zinc-950 font-bold shadow-sm' 
                     : 'text-zinc-400 hover:text-zinc-200'
                 }`}
               >
@@ -297,7 +297,7 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
                 }}
                 className={`min-h-[36px] py-1.5 px-2 text-xs font-medium rounded-lg transition-all ${
                   graphic.side === 'sleeve_left' 
-                    ? 'bg-amber-400 text-zinc-950 font-bold shadow-sm' 
+                    ? 'bg-brand text-zinc-950 font-bold shadow-sm' 
                     : 'text-zinc-400 hover:text-zinc-200'
                 }`}
               >
@@ -309,7 +309,7 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
                 }}
                 className={`min-h-[36px] py-1.5 px-2 text-xs font-medium rounded-lg transition-all ${
                   graphic.side === 'back' 
-                    ? 'bg-amber-400 text-zinc-950 font-bold shadow-sm' 
+                    ? 'bg-brand text-zinc-950 font-bold shadow-sm' 
                     : 'text-zinc-400 hover:text-zinc-200'
                 }`}
               >
@@ -321,7 +321,7 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
                 }}
                 className={`min-h-[36px] py-1.5 px-2 text-xs font-medium rounded-lg transition-all ${
                   graphic.side === 'sleeve_right' 
-                    ? 'bg-amber-400 text-zinc-950 font-bold shadow-sm' 
+                    ? 'bg-brand text-zinc-950 font-bold shadow-sm' 
                     : 'text-zinc-400 hover:text-zinc-200'
                 }`}
               >
@@ -348,7 +348,7 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
                     onClick={() => applyPreset(preset.id)}
                     className={`min-h-[50px] p-2.5 text-left rounded-xl border text-xs font-medium transition-all touch-manipulation active:scale-[0.98] ${
                       isActive
-                        ? 'bg-zinc-800 border-amber-500/60 text-amber-300 shadow-sm'
+                        ? 'bg-zinc-800 border-brand/60 text-brand shadow-sm'
                         : 'bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
                     }`}
                   >
@@ -372,7 +372,7 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
                 onClick={() => {
                   onChange({ x: 0, y: graphic.side === 'front' ? 2 : 0, scale: 1.0, rotation: 0, opacity: 1.0, preset: 'custom' });
                 }}
-                className="text-[11px] text-zinc-500 hover:text-amber-400 flex items-center gap-1 transition-colors"
+                className="text-[11px] text-zinc-500 hover:text-brand flex items-center gap-1 transition-colors"
               >
                 <RotateCcw className="w-3 h-3" />
                 Reset Posisi
@@ -392,7 +392,7 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
                 step="0.05"
                 value={graphic.scale}
                 onChange={(e) => onChange({ scale: parseFloat(e.target.value), preset: 'custom' })}
-                className="w-full accent-amber-500 h-1.5 bg-zinc-850 rounded-lg appearance-none cursor-pointer"
+                className="w-full accent-brand h-1.5 bg-zinc-850 rounded-lg appearance-none cursor-pointer"
               />
             </div>
 
@@ -409,7 +409,7 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
                 step="1"
                 value={graphic.rotation}
                 onChange={(e) => onChange({ rotation: parseInt(e.target.value), preset: 'custom' })}
-                className="w-full accent-amber-500 h-1.5 bg-zinc-850 rounded-lg appearance-none cursor-pointer"
+                className="w-full accent-brand h-1.5 bg-zinc-850 rounded-lg appearance-none cursor-pointer"
               />
             </div>
 
@@ -426,7 +426,7 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
                 step="1"
                 value={graphic.x}
                 onChange={(e) => onChange({ x: parseInt(e.target.value), preset: 'custom' })}
-                className="w-full accent-amber-500 h-1.5 bg-zinc-850 rounded-lg appearance-none cursor-pointer"
+                className="w-full accent-brand h-1.5 bg-zinc-850 rounded-lg appearance-none cursor-pointer"
               />
             </div>
 
@@ -443,7 +443,7 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
                 step="1"
                 value={graphic.y}
                 onChange={(e) => onChange({ y: parseInt(e.target.value), preset: 'custom' })}
-                className="w-full accent-amber-500 h-1.5 bg-zinc-850 rounded-lg appearance-none cursor-pointer"
+                className="w-full accent-brand h-1.5 bg-zinc-850 rounded-lg appearance-none cursor-pointer"
               />
             </div>
           </div>
@@ -458,7 +458,7 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
                 onClick={() => onChange({ colorFilter: 'original' })}
                 className={`p-2 rounded-lg border text-left transition-colors ${
                   graphic.colorFilter === 'original'
-                    ? 'border-amber-400 bg-amber-400/10 text-white font-medium'
+                    ? 'border-brand bg-brand/10 text-white font-medium'
                     : 'border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:text-zinc-200'
                 }`}
               >
@@ -468,7 +468,7 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
                 onClick={() => onChange({ colorFilter: 'monochrome_white' })}
                 className={`p-2 rounded-lg border text-left transition-colors ${
                   graphic.colorFilter === 'monochrome_white'
-                    ? 'border-amber-400 bg-amber-400/10 text-white font-medium'
+                    ? 'border-brand bg-brand/10 text-white font-medium'
                     : 'border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:text-zinc-200'
                 }`}
               >
@@ -478,7 +478,7 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
                 onClick={() => onChange({ colorFilter: 'monochrome_black' })}
                 className={`p-2 rounded-lg border text-left transition-colors ${
                   graphic.colorFilter === 'monochrome_black'
-                    ? 'border-amber-400 bg-amber-400/10 text-white font-medium'
+                    ? 'border-brand bg-brand/10 text-white font-medium'
                     : 'border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:text-zinc-200'
                 }`}
               >
@@ -488,7 +488,7 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
                 onClick={() => onChange({ colorFilter: 'vintage_warm' })}
                 className={`p-2 rounded-lg border text-left transition-colors ${
                   graphic.colorFilter === 'vintage_warm'
-                    ? 'border-amber-400 bg-amber-400/10 text-white font-medium'
+                    ? 'border-brand bg-brand/10 text-white font-medium'
                     : 'border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:text-zinc-200'
                 }`}
               >

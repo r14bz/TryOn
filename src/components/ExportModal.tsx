@@ -93,7 +93,7 @@ function Segmented<T extends string | number>({
           disabled={o.disabled}
           onClick={() => onChange(o.value)}
           className={`flex-1 min-h-[34px] px-2 rounded-lg transition-colors touch-manipulation disabled:opacity-30 ${
-            value === o.value ? 'bg-amber-400 text-zinc-950 font-bold' : 'text-zinc-400 hover:text-white'
+            value === o.value ? 'bg-brand text-zinc-950 font-bold' : 'text-zinc-400 hover:text-white'
           }`}
         >
           {o.label}
@@ -214,7 +214,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       <div className="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-t-3xl sm:rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90dvh]">
         <div className="p-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <Download className="w-5 h-5 text-amber-400 shrink-0" />
+            <Download className="w-5 h-5 text-brand shrink-0" />
             <div>
               <h2 className="text-sm font-bold text-white font-display">Simpan Gambar Desain</h2>
               <p className="text-[11px] text-zinc-400">Hasil resolusi tinggi, langsung diunduh</p>
@@ -275,7 +275,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             </label>
             <Segmented<Scale> value={scale} onChange={setScale} options={is3D ? SCALES_3D : SCALES_2D} />
             {scale === 4 && (
-              <p className="text-[10px] text-amber-400/90 mt-1">
+              <p className="text-[10px] text-brand/90 mt-1">
                 4096px memakai banyak memori; di HP bisa gagal. Jika gagal, pilih resolusi lebih kecil.
               </p>
             )}
@@ -328,7 +328,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           <button
             onClick={handleSave}
             disabled={!!busy}
-            className="w-full min-h-[44px] text-sm font-semibold text-zinc-950 bg-amber-400 hover:bg-amber-300 disabled:opacity-70 rounded-xl flex items-center justify-center gap-2 transition-colors touch-manipulation"
+            className="w-full min-h-[44px] text-sm font-semibold text-zinc-950 bg-brand hover:bg-brand/85 disabled:opacity-70 rounded-xl flex items-center justify-center gap-2 transition-colors touch-manipulation"
           >
             {busy ? (
               <>

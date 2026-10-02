@@ -44,7 +44,7 @@ export const CanvasEditDock: React.FC<CanvasEditDockProps> = ({
             key={g.id}
             onClick={() => onSelect?.(g.id)}
             className={`shrink-0 flex items-center gap-1.5 pl-1 pr-1.5 py-1 rounded-xl border cursor-pointer touch-manipulation transition-colors ${
-              active ? 'border-amber-500/70 bg-amber-400/10' : 'border-zinc-800 bg-zinc-900/70'
+              active ? 'border-brand/70 bg-brand/10' : 'border-zinc-800 bg-zinc-900/70'
             }`}
           >
             <div className="w-9 h-9 shrink-0 rounded-lg bg-zinc-800 p-0.5 flex items-center justify-center">
@@ -55,7 +55,7 @@ export const CanvasEditDock: React.FC<CanvasEditDockProps> = ({
               />
             </div>
             <span
-              className={`text-[10px] font-mono whitespace-nowrap ${active ? 'text-amber-300' : 'text-amber-400/80'}`}
+              className={`text-[10px] font-mono whitespace-nowrap ${active ? 'text-brand' : 'text-brand/80'}`}
             >
               {SIDE_SHORT[g.side]}
             </span>
