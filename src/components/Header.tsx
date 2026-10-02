@@ -24,9 +24,9 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="flex items-center justify-between px-3 sm:px-6 h-16 border-b border-zinc-850 bg-zinc-950/95 backdrop-blur z-30 shrink-0">
       {/* Zone 1: Logo Try-D */}
-      <div className="flex items-center min-w-0">
-        <a href="/" aria-label="Try-D - Try On Your Design" className="flex items-center shrink-0">
-          <img src={logo} alt="Try-D" width={720} height={192} className="h-8 min-[380px]:h-9 min-[400px]:h-11 sm:h-12 w-auto max-w-full object-contain object-left select-none" draggable={false} />
+      <div className="flex items-center min-w-0 flex-1">
+        <a href="/" aria-label="Try-D - Try On Your Design" className="flex items-center min-w-0">
+          <img src={logo} alt="Try-D" width={800} height={221} className="h-11 min-[400px]:h-12 sm:h-14 w-auto max-w-full object-contain object-left select-none" draggable={false} />
         </a>
       </div>
 
@@ -65,7 +65,7 @@ export const Header: React.FC<HeaderProps> = ({
       </nav>
 
       {/* Zone 3: aksi utama (ukuran kecil agar muat di HP) */}
-      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         <button
           onClick={onOpenQuote}
           title="Rincian & Biaya Sablon"
@@ -81,7 +81,9 @@ export const Header: React.FC<HeaderProps> = ({
           className="h-8 px-2.5 sm:px-3 text-[11px] sm:text-xs font-semibold text-zinc-950 bg-amber-400 hover:bg-amber-300 rounded-lg shadow-sm active:scale-95 transition-all whitespace-nowrap flex items-center gap-1 touch-manipulation"
         >
           <Download className="w-3.5 h-3.5 shrink-0" />
-          <span>Simpan Gambar</span>
+          <span>
+            Simpan<span className="hidden sm:inline"> Gambar</span>
+          </span>
         </button>
 
         {installMode !== 'none' && (
