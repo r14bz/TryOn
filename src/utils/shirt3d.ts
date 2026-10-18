@@ -368,9 +368,7 @@ export function prepareHoodieModel(
   const uniforms = createPrintUniforms();
   const meshes: THREE.Mesh[] = [];
 
-  // The hoodie asset is made from multiple separate mesh parts (body, hood/cuffs).
-  // Convert each part into the same model-local coordinate system so the print
-  // projection lines up across seams, then keep all parts editable as one garment.
+  // Bake every mesh's transforms into shared model-local coordinates first.
   model.updateMatrixWorld(true);
   const inverseRoot = model.matrixWorld.clone().invert();
   const parts: THREE.Mesh[] = [];
@@ -379,10 +377,31 @@ export function prepareHoodieModel(
     if (mesh.isMesh) parts.push(mesh);
   });
 
+  const prepared: Array<{ mesh: THREE.Mesh; geometry: THREE.BufferGeometry; original: THREE.Material }> = [];
+  const bounds = new THREE.Box3();
   for (const mesh of parts) {
     const relativeMatrix = inverseRoot.clone().multiply(mesh.matrixWorld);
     const geometry = mesh.geometry.clone();
     geometry.applyMatrix4(relativeMatrix);
+    geometry.computeBoundingBox();
+    if (geometry.boundingBox) bounds.union(geometry.boundingBox);
+    const original = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) ?? new THREE.MeshStandardMaterial();
+    prepared.push({ mesh, geometry, original });
+  }
+
+  // Normalize the actual vertex coordinates (not only Object3D.scale), because
+  // the print projection shader works in vertex-local coordinates.
+  const size = new THREE.Vector3();
+  const center = new THREE.Vector3();
+  bounds.getSize(size);
+  bounds.getCenter(center);
+  const maxDimension = Math.max(size.x, size.y, size.z);
+  const normalization = Number.isFinite(maxDimension) && size.y > 0 ? 0.82 / size.y : 1;
+
+  for (const part of prepared) {
+    const { mesh, geometry, original } = part;
+    geometry.translate(-center.x, -center.y, -center.z);
+    geometry.scale(normalization, normalization, normalization);
     geometry.computeBoundingBox();
     geometry.computeBoundingSphere();
 
@@ -396,16 +415,15 @@ export function prepareHoodieModel(
 
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    const sourceMaterials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-    const original = sourceMaterials.find((m) => m) as THREE.MeshStandardMaterial | undefined;
+    const source = original as THREE.MeshStandardMaterial;
     const material = new THREE.MeshStandardMaterial({
       color: new THREE.Color(shirtBaseHex(color)),
       roughness: shirtRoughness(color, fabric),
       metalness: 0.02,
-      map: original?.map || null,
-      normalMap: original?.normalMap || null,
-      roughnessMap: original?.roughnessMap || null,
-      aoMap: original?.aoMap || null,
+      map: source.map || null,
+      normalMap: source.normalMap || null,
+      roughnessMap: source.roughnessMap || null,
+      aoMap: source.aoMap || null,
       side: THREE.DoubleSide
     });
     applyPrintShader(material, uniforms);
@@ -415,5 +433,8 @@ export function prepareHoodieModel(
     meshes.push(mesh);
   }
 
+  // Vertices are already normalized and centered; keep the root transform neutral.
+  model.position.set(0, 0, 0);
+  model.scale.set(1, 1, 1);
   return { mesh: meshes[0] ?? null, meshes, uniforms };
 }
