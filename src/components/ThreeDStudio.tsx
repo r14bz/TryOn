@@ -31,6 +31,8 @@ import {
 } from '../utils/shirt3d';
 
 interface ThreeDStudioProps {
+  garmentModel: 'shirt' | 'hoodie';
+  onGarmentModelChange: (model: 'shirt' | 'hoodie') => void;
   fabric: FabricInfo;
   color: TshirtColor;
   graphics: GraphicSettings[];
@@ -52,6 +54,8 @@ interface ThreeDStudioProps {
 
 
 export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
+  garmentModel,
+  onGarmentModelChange,
   fabric,
   color,
   graphics,
@@ -206,7 +210,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     // Load authentic 3D T-Shirt GLB
     const loader = new GLTFLoader();
     loader.load(
-      '/shirt_baked.glb',
+      garmentModel === 'hoodie' ? '/models/hoodie.glb' : '/shirt_baked.glb',
       (gltf) => {
         if (disposed) return;
         const model = gltf.scene;
@@ -221,7 +225,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
       },
       undefined,
       (err) => {
-        console.error('Failed to load 3D t-shirt model:', err);
+        console.error('Failed to load 3D garment model:', err);
       }
     );
 
@@ -473,6 +477,12 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     <div className={`relative flex flex-col items-center justify-center w-full h-full select-none overflow-hidden transition-colors duration-300 ${
       studioBgColor === 'white' ? 'bg-white text-zinc-900' : 'bg-zinc-950 text-white'
     }`}>
+      {/* Pilihan model pakaian */}
+      <div className="absolute left-2 top-2 sm:left-3 z-20 flex items-center gap-1 rounded-xl border border-zinc-500/20 bg-zinc-900/80 p-1 shadow-lg backdrop-blur">
+        <button type="button" onClick={() => onGarmentModelChange('shirt')} className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${garmentModel === 'shirt' ? 'bg-brand text-zinc-950' : 'text-zinc-200 hover:bg-white/10'}`}>Kaos</button>
+        <button type="button" onClick={() => onGarmentModelChange('hoodie')} className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${garmentModel === 'hoodie' ? 'bg-brand text-zinc-950' : 'text-zinc-200 hover:bg-white/10'}`}>Hoodie</button>
+      </div>
+
       {/* Main 3D Canvas Mount */}
       <div
         ref={mountRef}
@@ -488,7 +498,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
       {!isModelLoaded && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/20 backdrop-blur-sm pointer-events-none z-10">
           <div className="w-9 h-9 border-2 border-brand border-t-transparent rounded-full animate-spin mb-2" />
-          <span className="text-xs font-semibold text-zinc-200">Memuat Model 3D Kaos...</span>
+          <span className="text-xs font-semibold text-zinc-200">Memuat Model 3D...</span>
         </div>
       )}
 
