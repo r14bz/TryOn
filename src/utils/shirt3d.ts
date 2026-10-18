@@ -171,43 +171,47 @@ roughnessFactor = mix(roughnessFactor, printRough, printMask);`
 // ---------------------------------------------------------------------------
 // Visibilitas per-vertex (anti tembus)
 // ---------------------------------------------------------------------------
-let visibilityCache: { count: number; data: Float32Array } | null = null;
+const visibilityCache = new WeakMap<THREE.BufferGeometry, Float32Array>();
 
 /**
- * Menambahkan atribut `printVis` (vec4: depan, belakang, lengan kiri, lengan kanan)
- * ke geometri. Nilai 1 = permukaan itu pertama terkena proyektor sisi tersebut.
- * Dihitung sekali (~0,1 detik) lalu disimpan, karena model tidak berubah.
+ * Compute visibilitas untuk geometri yang tepat, bukan hanya jumlah vertex.
+ * Hoodie terdiri dari banyak mesh; cache berdasarkan jumlah vertex membuat
+ * geometri yang berbeda memakai mask sisi yang salah sehingga sablon bocor/rusak.
  */
 export function attachPrintVisibility(geometry: THREE.BufferGeometry) {
-  const pos = geometry.getAttribute('position');
-  const count = pos.count;
-
-  if (!visibilityCache || visibilityCache.count !== count) {
-    const positions = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-      positions[i * 3] = pos.getX(i);
-      positions[i * 3 + 1] = pos.getY(i);
-      positions[i * 3 + 2] = pos.getZ(i);
-    }
-    const index = geometry.getIndex();
-    let indices: ArrayLike<number>;
-    if (index) {
-      indices = index.array as ArrayLike<number>;
-    } else {
-      const seq = new Uint32Array(count);
-      for (let i = 0; i < count; i++) seq[i] = i;
-      indices = seq;
-    }
-
-    const data = new Float32Array(count * 4).fill(1);
-    SIDE_ORDER.forEach((side, channel) => {
-      const vis = computeAxisVisibility(positions, indices, SIDE_AXIS[side]);
-      for (let i = 0; i < count; i++) data[i * 4 + channel] = vis[i];
-    });
-    visibilityCache = { count, data };
+  const cached = visibilityCache.get(geometry);
+  if (cached) {
+    geometry.setAttribute('printVis', new THREE.BufferAttribute(cached, 4));
+    return;
   }
 
-  geometry.setAttribute('printVis', new THREE.BufferAttribute(visibilityCache.data, 4));
+  const pos = geometry.getAttribute('position');
+  if (!pos) return;
+  const count = pos.count;
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    positions[i * 3] = pos.getX(i);
+    positions[i * 3 + 1] = pos.getY(i);
+    positions[i * 3 + 2] = pos.getZ(i);
+  }
+
+  const index = geometry.getIndex();
+  let indices: ArrayLike<number>;
+  if (index) {
+    indices = index.array as ArrayLike<number>;
+  } else {
+    const seq = new Uint32Array(count);
+    for (let i = 0; i < count; i++) seq[i] = i;
+    indices = seq;
+  }
+
+  const data = new Float32Array(count * 4).fill(1);
+  SIDE_ORDER.forEach((side, channel) => {
+    const vis = computeAxisVisibility(positions, indices, SIDE_AXIS[side]);
+    for (let i = 0; i < count; i++) data[i * 4 + channel] = vis[i];
+  });
+  visibilityCache.set(geometry, data);
+  geometry.setAttribute('printVis', new THREE.BufferAttribute(data, 4));
 }
 
 // ---------------------------------------------------------------------------
