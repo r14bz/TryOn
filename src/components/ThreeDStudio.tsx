@@ -1,7 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { createCustomHoodie } from '../utils/customHoodie';
 import { 
   RotateCcw, 
   ZoomIn, 
@@ -257,27 +256,22 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
       }
     };
 
-    if (garmentModel === 'hoodie') {
-      // Use Try-D's original procedural hoodie model; no external GLB dependency.
-      initializeModel(createCustomHoodie(), 'custom hoodie');
-    } else {
-      loader.load(
-        modelUrl,
-        (gltf) => initializeModel(gltf.scene, modelUrl),
-        (event) => {
-          if (event.total > 0 && !disposed) setModelLoadProgress(Math.round((event.loaded / event.total) * 100));
-        },
-        (err) => {
-          loadFinished = true;
-          window.clearTimeout(loadTimeout);
-          console.error(`Failed to load 3D garment model (${modelUrl}):`, err);
-          if (!disposed) {
-            setIsModelLoaded(false);
-            setModelLoadError(`Model gagal dimuat. Periksa file ${modelUrl} dan coba muat ulang halaman.`);
-          }
+    loader.load(
+      modelUrl,
+      (gltf) => initializeModel(gltf.scene, modelUrl),
+      (event) => {
+        if (event.total > 0 && !disposed) setModelLoadProgress(Math.round((event.loaded / event.total) * 100));
+      },
+      (err) => {
+        loadFinished = true;
+        window.clearTimeout(loadTimeout);
+        console.error(`Failed to load 3D garment model (${modelUrl}):`, err);
+        if (!disposed) {
+          setIsModelLoaded(false);
+          setModelLoadError(`Model gagal dimuat. Periksa file ${modelUrl} dan coba muat ulang halaman.`);
         }
-      );
-    }
+      }
+    );
 
     // Render loop
     let animId: number;
