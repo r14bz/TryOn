@@ -111,6 +111,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   // Interactive Mode: 'rotate' (spin 360) vs 'graphic' (drag graphic)
   const [interactMode, setInteractMode] = useState<'rotate' | 'graphic'>('rotate');
   const [isModelLoaded, setIsModelLoaded] = useState(false);
+  const [modelLoadError, setModelLoadError] = useState<string | null>(null);
 
   // Drag tracking
   const isDraggingRef = useRef(false);
@@ -208,9 +209,12 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     rootGroup.add(shadowMesh);
 
     // Load authentic 3D T-Shirt GLB
+    setIsModelLoaded(false);
+    setModelLoadError(null);
     const loader = new GLTFLoader();
+    const modelUrl = garmentModel === 'hoodie' ? '/models/hoodie.glb' : '/shirt_baked.glb';
     loader.load(
-      garmentModel === 'hoodie' ? '/models/hoodie.glb' : '/shirt_baked.glb',
+      modelUrl,
       (gltf) => {
         if (disposed) return;
         const model = gltf.scene;
@@ -224,8 +228,13 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
         setIsModelLoaded(true);
       },
       undefined,
+      undefined,
       (err) => {
-        console.error('Failed to load 3D garment model:', err);
+        console.error(`Failed to load 3D garment model (${modelUrl}):`, err);
+        if (!disposed) {
+          setIsModelLoaded(false);
+          setModelLoadError(`Model gagal dimuat. Periksa file ${modelUrl} dan coba muat ulang halaman.`);
+        }
       }
     );
 
@@ -496,9 +505,18 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
 
       {/* Loading Overlay */}
       {!isModelLoaded && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/20 backdrop-blur-sm pointer-events-none z-10">
-          <div className="w-9 h-9 border-2 border-brand border-t-transparent rounded-full animate-spin mb-2" />
-          <span className="text-xs font-semibold text-zinc-200">Memuat Model 3D...</span>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-950/20 backdrop-blur-sm z-10 px-6 text-center">
+          {modelLoadError ? (
+            <>
+              <span className="text-sm font-semibold text-zinc-900 bg-white/90 rounded-xl px-4 py-3 shadow-lg">{modelLoadError}</span>
+              <button type="button" onClick={() => window.location.reload()} className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-zinc-950 shadow">Muat ulang</button>
+            </>
+          ) : (
+            <>
+              <div className="w-9 h-9 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+              <span className="text-xs font-semibold text-zinc-200">Memuat Model 3D...</span>
+            </>
+          )}
         </div>
       )}
 
