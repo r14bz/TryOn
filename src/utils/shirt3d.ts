@@ -353,3 +353,49 @@ export function prepareShirtModel(
   model.position.set(0, 0.045, 0);
   return { mesh: main, uniforms };
 }
+
+
+/**
+ * Lightweight preparation for the higher-poly pullover hoodie asset.
+ * The shirt's visibility precomputation is expensive for this model, so use a
+ * neutral visibility attribute while retaining the print projection shader.
+ */
+export function prepareHoodieModel(
+  model: THREE.Object3D,
+  color: TshirtColor,
+  fabric: FabricInfo
+): { mesh: THREE.Mesh | null; uniforms: PrintLayerUniforms[] } {
+  const uniforms = createPrintUniforms();
+  let main: THREE.Mesh | null = null;
+
+  model.traverse((child) => {
+    if (!(child as THREE.Mesh).isMesh) return;
+    const mesh = child as THREE.Mesh;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+
+    const originalMaterials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    const original = originalMaterials.find((m) => m) as THREE.MeshStandardMaterial | undefined;
+    const material = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(shirtBaseHex(color)),
+      roughness: shirtRoughness(color, fabric),
+      metalness: 0.02,
+      normalMap: original?.normalMap || null,
+      normalScale: new THREE.Vector2(1.2, 1.2),
+      side: THREE.DoubleSide
+    });
+    applyPrintShader(material, uniforms);
+
+    const geometry = mesh.geometry;
+    if (!geometry.getAttribute('printVis')) {
+      const count = geometry.getAttribute('position')?.count ?? 0;
+      geometry.setAttribute('printVis', new THREE.BufferAttribute(new Float32Array(count * 4).fill(1), 4));
+    }
+    mesh.material = material;
+    if (!main) main = mesh;
+  });
+
+  // Keep the imported asset's own transforms intact; only normalize its root offset.
+  model.position.set(0, 0, 0);
+  return { mesh: main, uniforms };
+}
