@@ -364,38 +364,56 @@ export function prepareHoodieModel(
   model: THREE.Object3D,
   color: TshirtColor,
   fabric: FabricInfo
-): { mesh: THREE.Mesh | null; uniforms: PrintLayerUniforms[] } {
+): { mesh: THREE.Mesh | null; meshes: THREE.Mesh[]; uniforms: PrintLayerUniforms[] } {
   const uniforms = createPrintUniforms();
-  let main: THREE.Mesh | null = null;
+  const meshes: THREE.Mesh[] = [];
 
+  // The hoodie asset is made from multiple separate mesh parts (body, hood/cuffs).
+  // Convert each part into the same model-local coordinate system so the print
+  // projection lines up across seams, then keep all parts editable as one garment.
+  model.updateMatrixWorld(true);
+  const inverseRoot = model.matrixWorld.clone().invert();
+  const parts: THREE.Mesh[] = [];
   model.traverse((child) => {
-    if (!(child as THREE.Mesh).isMesh) return;
     const mesh = child as THREE.Mesh;
+    if (mesh.isMesh) parts.push(mesh);
+  });
+
+  for (const mesh of parts) {
+    const relativeMatrix = inverseRoot.clone().multiply(mesh.matrixWorld);
+    const geometry = mesh.geometry.clone();
+    geometry.applyMatrix4(relativeMatrix);
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
+
+    mesh.removeFromParent();
+    mesh.geometry = geometry;
+    mesh.position.set(0, 0, 0);
+    mesh.quaternion.identity();
+    mesh.scale.set(1, 1, 1);
+    mesh.updateMatrix();
+    model.add(mesh);
+
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-
-    const originalMaterials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-    const original = originalMaterials.find((m) => m) as THREE.MeshStandardMaterial | undefined;
+    const sourceMaterials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    const original = sourceMaterials.find((m) => m) as THREE.MeshStandardMaterial | undefined;
     const material = new THREE.MeshStandardMaterial({
       color: new THREE.Color(shirtBaseHex(color)),
       roughness: shirtRoughness(color, fabric),
       metalness: 0.02,
+      map: original?.map || null,
       normalMap: original?.normalMap || null,
-      normalScale: new THREE.Vector2(1.2, 1.2),
+      roughnessMap: original?.roughnessMap || null,
+      aoMap: original?.aoMap || null,
       side: THREE.DoubleSide
     });
     applyPrintShader(material, uniforms);
-
-    const geometry = mesh.geometry;
-    if (!geometry.getAttribute('printVis')) {
-      const count = geometry.getAttribute('position')?.count ?? 0;
-      geometry.setAttribute('printVis', new THREE.BufferAttribute(new Float32Array(count * 4).fill(1), 4));
-    }
+    const count = geometry.getAttribute('position')?.count ?? 0;
+    geometry.setAttribute('printVis', new THREE.BufferAttribute(new Float32Array(count * 4).fill(1), 4));
     mesh.material = material;
-    if (!main) main = mesh;
-  });
+    meshes.push(mesh);
+  }
 
-  // Keep the imported asset's own transforms intact; only normalize its root offset.
-  model.position.set(0, 0, 0);
-  return { mesh: main, uniforms };
+  return { mesh: meshes[0] ?? null, meshes, uniforms };
 }
