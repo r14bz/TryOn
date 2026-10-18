@@ -228,7 +228,6 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
         setIsModelLoaded(true);
       },
       undefined,
-      undefined,
       (err) => {
         console.error(`Failed to load 3D garment model (${modelUrl}):`, err);
         if (!disposed) {
