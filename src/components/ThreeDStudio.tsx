@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { createCustomHoodie } from '../utils/customHoodie';
 import { 
   RotateCcw, 
   ZoomIn, 
@@ -231,48 +232,52 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     }, 20000);
     const loader = new GLTFLoader();
     const modelUrl = garmentModel === 'hoodie' ? '/models/hoodie.glb' : '/shirt_baked.glb';
-    loader.load(
-      modelUrl,
-      (gltf) => {
-        loadFinished = true;
-        window.clearTimeout(loadTimeout);
-        if (disposed) return;
-        try {
-          const model = gltf.scene;
+    const initializeModel = (model: THREE.Object3D, sourceUrl: string) => {
+      loadFinished = true;
+      window.clearTimeout(loadTimeout);
+      if (disposed) return;
+      try {
+        const prepared = garmentModel === 'hoodie'
+          ? prepareHoodieModel(model, color, fabric)
+          : prepareShirtModel(model, color, fabric);
 
-          // Hoodie and shirt assets may have different geometry/material assumptions.
-          const prepared = garmentModel === 'hoodie'
-            ? prepareHoodieModel(model, color, fabric)
-            : prepareShirtModel(model, color, fabric);
+        printUniformsRef.current = prepared.uniforms;
+        tshirtMeshRef.current = prepared.mesh;
+        garmentMeshesRef.current = garmentModel === 'hoodie' && 'meshes' in prepared
+          ? prepared.meshes
+          : prepared.mesh ? [prepared.mesh] : [];
 
-          printUniformsRef.current = prepared.uniforms;
-          tshirtMeshRef.current = prepared.mesh;
-          garmentMeshesRef.current = garmentModel === 'hoodie' && 'meshes' in prepared
-            ? prepared.meshes
-            : prepared.mesh ? [prepared.mesh] : [];
-
-          rootGroup.add(model);
-          setModelLoadProgress(100);
-          setIsModelLoaded(true);
-        } catch (err) {
-          console.error(`Failed to initialize 3D garment model (${modelUrl}):`, err);
-          setIsModelLoaded(false);
-          setModelLoadError(`Model berhasil diunduh tetapi gagal diproses. Kemungkinan format/geometri model tidak cocok (${modelUrl}).`);
-        }
-      },
-      (event) => {
-        if (event.total > 0 && !disposed) setModelLoadProgress(Math.round((event.loaded / event.total) * 100));
-      },
-      (err) => {
-        loadFinished = true;
-        window.clearTimeout(loadTimeout);
-        console.error(`Failed to load 3D garment model (${modelUrl}):`, err);
-        if (!disposed) {
-          setIsModelLoaded(false);
-          setModelLoadError(`Model gagal dimuat. Periksa file ${modelUrl} dan coba muat ulang halaman.`);
-        }
+        rootGroup.add(model);
+        setModelLoadProgress(100);
+        setIsModelLoaded(true);
+      } catch (err) {
+        console.error(`Failed to initialize 3D garment model (${sourceUrl}):`, err);
+        setIsModelLoaded(false);
+        setModelLoadError(`Model berhasil dimuat tetapi gagal diproses (${sourceUrl}).`);
       }
-    );
+    };
+
+    if (garmentModel === 'hoodie') {
+      // Use Try-D's original procedural hoodie model; no external GLB dependency.
+      initializeModel(createCustomHoodie(), 'custom hoodie');
+    } else {
+      loader.load(
+        modelUrl,
+        (gltf) => initializeModel(gltf.scene, modelUrl),
+        (event) => {
+          if (event.total > 0 && !disposed) setModelLoadProgress(Math.round((event.loaded / event.total) * 100));
+        },
+        (err) => {
+          loadFinished = true;
+          window.clearTimeout(loadTimeout);
+          console.error(`Failed to load 3D garment model (${modelUrl}):`, err);
+          if (!disposed) {
+            setIsModelLoaded(false);
+            setModelLoadError(`Model gagal dimuat. Periksa file ${modelUrl} dan coba muat ulang halaman.`);
+          }
+        }
+      );
+    }
 
     // Render loop
     let animId: number;
