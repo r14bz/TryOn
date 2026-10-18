@@ -217,15 +217,21 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
       modelUrl,
       (gltf) => {
         if (disposed) return;
-        const model = gltf.scene;
+        try {
+          const model = gltf.scene;
 
-        // Material kain + shader sablon + atribut anti-tembus (kode bersama dengan ekspor 3D)
-        const prepared = prepareShirtModel(model, color, fabric);
-        printUniformsRef.current = prepared.uniforms;
-        tshirtMeshRef.current = prepared.mesh;
+          // Hoodie and shirt assets may have different geometry/material assumptions.
+          const prepared = prepareShirtModel(model, color, fabric);
+          printUniformsRef.current = prepared.uniforms;
+          tshirtMeshRef.current = prepared.mesh;
 
-        rootGroup.add(model);
-        setIsModelLoaded(true);
+          rootGroup.add(model);
+          setIsModelLoaded(true);
+        } catch (err) {
+          console.error(`Failed to initialize 3D garment model (${modelUrl}):`, err);
+          setIsModelLoaded(false);
+          setModelLoadError(`Model berhasil diunduh tetapi gagal diproses. Kemungkinan format/geometri model tidak cocok (${modelUrl}).`);
+        }
       },
       undefined,
       (err) => {
