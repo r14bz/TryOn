@@ -25,6 +25,7 @@ import {
   PrintTextureEntry,
   buildPrintTexture,
   prepareShirtModel,
+  prepareHoodieModel,
   shirtBaseHex,
   shirtRoughness,
   syncLayerUniforms
@@ -239,7 +240,9 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
           const model = gltf.scene;
 
           // Hoodie and shirt assets may have different geometry/material assumptions.
-          const prepared = prepareShirtModel(model, color, fabric);
+          const prepared = garmentModel === 'hoodie'
+            ? prepareHoodieModel(model, color, fabric)
+            : prepareShirtModel(model, color, fabric);
           printUniformsRef.current = prepared.uniforms;
           tshirtMeshRef.current = prepared.mesh;
 
