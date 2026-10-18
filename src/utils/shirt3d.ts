@@ -427,8 +427,10 @@ export function prepareHoodieModel(
       side: THREE.DoubleSide
     });
     applyPrintShader(material, uniforms);
-    const count = geometry.getAttribute('position')?.count ?? 0;
-    geometry.setAttribute('printVis', new THREE.BufferAttribute(new Float32Array(count * 4).fill(1), 4));
+    // Compute side-specific visibility for the hoodie too. A neutral all-ones
+    // attribute lets every projection pass through to the front-facing torso,
+    // which made back and sleeve artwork appear stacked on the front.
+    attachPrintVisibility(geometry);
     mesh.material = material;
     meshes.push(mesh);
   }
