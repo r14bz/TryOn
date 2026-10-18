@@ -112,6 +112,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   const [interactMode, setInteractMode] = useState<'rotate' | 'graphic'>('rotate');
   const [isModelLoaded, setIsModelLoaded] = useState(false);
   const [modelLoadError, setModelLoadError] = useState<string | null>(null);
+  const [modelLoadProgress, setModelLoadProgress] = useState<number | null>(null);
 
   // Drag tracking
   const isDraggingRef = useRef(false);
@@ -211,11 +212,20 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     // Load authentic 3D T-Shirt GLB
     setIsModelLoaded(false);
     setModelLoadError(null);
+    setModelLoadProgress(null);
+    let loadFinished = false;
+    const loadTimeout = window.setTimeout(() => {
+      if (!disposed && !loadFinished) {
+        setModelLoadError(`Pemuatan model terlalu lama (lebih dari 20 detik). Periksa koneksi atau file model: ${garmentModel === 'hoodie' ? '/models/hoodie.glb' : '/shirt_baked.glb'}`);
+      }
+    }, 20000);
     const loader = new GLTFLoader();
     const modelUrl = garmentModel === 'hoodie' ? '/models/hoodie.glb' : '/shirt_baked.glb';
     loader.load(
       modelUrl,
       (gltf) => {
+        loadFinished = true;
+        window.clearTimeout(loadTimeout);
         if (disposed) return;
         try {
           const model = gltf.scene;
@@ -226,6 +236,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
           tshirtMeshRef.current = prepared.mesh;
 
           rootGroup.add(model);
+          setModelLoadProgress(100);
           setIsModelLoaded(true);
         } catch (err) {
           console.error(`Failed to initialize 3D garment model (${modelUrl}):`, err);
@@ -233,8 +244,12 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
           setModelLoadError(`Model berhasil diunduh tetapi gagal diproses. Kemungkinan format/geometri model tidak cocok (${modelUrl}).`);
         }
       },
-      undefined,
+      (event) => {
+        if (event.total > 0 && !disposed) setModelLoadProgress(Math.round((event.loaded / event.total) * 100));
+      },
       (err) => {
+        loadFinished = true;
+        window.clearTimeout(loadTimeout);
         console.error(`Failed to load 3D garment model (${modelUrl}):`, err);
         if (!disposed) {
           setIsModelLoaded(false);
@@ -283,6 +298,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
 
     return () => {
       disposed = true;
+      window.clearTimeout(loadTimeout);
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
       resizeObserver?.disconnect();
@@ -519,7 +535,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
           ) : (
             <>
               <div className="w-9 h-9 border-2 border-brand border-t-transparent rounded-full animate-spin" />
-              <span className="text-xs font-semibold text-zinc-200">Memuat Model 3D...</span>
+              <span className="text-xs font-semibold text-zinc-200">Memuat Model 3D{modelLoadProgress !== null ? `... ${modelLoadProgress}%` : "..."}</span>
             </>
           )}
         </div>
