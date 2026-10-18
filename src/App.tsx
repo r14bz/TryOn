@@ -53,6 +53,7 @@ export default function App() {
 
   // Studio Viewing Mode: 3D Rotatable Model or 2D Studio Photo Mockup
   const [studioMode, setStudioMode] = useState<'3d' | '2d'>('3d');
+  const [garmentModel, setGarmentModel] = useState<'shirt' | 'hoodie'>('shirt');
   
   // Studio Background Theme: Pure White or Deep Studio Black
   const [studioBgColor, setStudioBgColor] = useState<StudioBgColor>('white');
@@ -235,6 +236,8 @@ export default function App() {
             {studioMode === '3d' ? (
               <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-zinc-500 text-sm">Memuat studio 3D…</div>}>
               <ThreeDStudio
+                 garmentModel={garmentModel}
+                 onGarmentModelChange={setGarmentModel}
                 fabric={selectedFabric}
                 color={selectedColor}
                 graphics={graphics}
