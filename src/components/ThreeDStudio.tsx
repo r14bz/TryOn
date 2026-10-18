@@ -150,11 +150,19 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     const width = container.clientWidth || 600;
     const height = container.clientHeight || 600;
 
-    const renderer = new THREE.WebGLRenderer({ 
-      antialias: true, 
-      alpha: true, 
-      preserveDrawingBuffer: true 
-    });
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        preserveDrawingBuffer: true
+      });
+    } catch (error) {
+      console.error('Failed to initialize WebGL renderer:', error);
+      setIsModelLoaded(false);
+      setModelLoadError('3D tidak dapat dijalankan di browser ini (WebGL gagal diinisialisasi). Coba aktifkan akselerasi grafis atau gunakan browser/perangkat lain.');
+      return () => { disposed = true; };
+    }
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
