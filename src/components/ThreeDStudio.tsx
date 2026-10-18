@@ -245,27 +245,6 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
             ? prepareHoodieModel(model, color, fabric)
             : prepareShirtModel(model, color, fabric);
 
-          // The imported hoodie asset uses a much larger world-space scale than
-          // the existing shirt. Normalize its bounds so it fits the studio view.
-          if (garmentModel === 'hoodie') {
-            model.updateMatrixWorld(true);
-            const bounds = new THREE.Box3().setFromObject(model);
-            const size = new THREE.Vector3();
-            const center = new THREE.Vector3();
-            bounds.getSize(size);
-            bounds.getCenter(center);
-            const maxDimension = Math.max(size.x, size.y, size.z);
-            if (Number.isFinite(maxDimension) && maxDimension > 0) {
-              const targetHeight = 0.82;
-              const scale = targetHeight / (size.y > 0 ? size.y : maxDimension);
-              model.scale.multiplyScalar(scale);
-              model.position.x -= center.x * scale;
-              model.position.y -= center.y * scale - 0.02;
-              model.position.z -= center.z * scale;
-              model.updateMatrixWorld(true);
-            }
-          }
-
           printUniformsRef.current = prepared.uniforms;
           tshirtMeshRef.current = prepared.mesh;
           garmentMeshesRef.current = garmentModel === 'hoodie' && 'meshes' in prepared
