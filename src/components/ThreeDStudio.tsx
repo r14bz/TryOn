@@ -83,6 +83,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const tshirtRootGroup = useRef<THREE.Group | null>(null);
   const tshirtMeshRef = useRef<THREE.Mesh | null>(null);
+  const garmentMeshesRef = useRef<THREE.Mesh[]>([]);
   const printUniformsRef = useRef<PrintLayerUniforms[] | null>(null);
   // Per-layer artwork textures (rebuilt only when image / ink filter / opacity change)
   const texCacheRef = useRef(
@@ -267,6 +268,9 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
 
           printUniformsRef.current = prepared.uniforms;
           tshirtMeshRef.current = prepared.mesh;
+          garmentMeshesRef.current = garmentModel === 'hoodie' && 'meshes' in prepared
+            ? prepared.meshes
+            : prepared.mesh ? [prepared.mesh] : [];
 
           rootGroup.add(model);
           setModelLoadProgress(100);
@@ -357,6 +361,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
       texCacheRef.current.clear();
       pendingTexRef.current.clear();
       tshirtMeshRef.current = null;
+      garmentMeshesRef.current = [];
       tshirtRootGroup.current = null;
       sceneRef.current = null;
       cameraRef.current = null;
@@ -393,13 +398,20 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
 
   // 4. Update T-Shirt Material Color & Fabric Properties
   useEffect(() => {
-    const mesh = tshirtMeshRef.current;
-    if (!mesh || !mesh.material) return;
+    const meshes = garmentMeshesRef.current.length
+      ? garmentMeshesRef.current
+      : tshirtMeshRef.current ? [tshirtMeshRef.current] : [];
+    if (!meshes.length) return;
 
-    const mat = mesh.material as THREE.MeshStandardMaterial;
-    mat.color.set(new THREE.Color(shirtBaseHex(color)));
-    mat.roughness = shirtRoughness(color, fabric);
-    mat.needsUpdate = true;
+    meshes.forEach((mesh) => {
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      materials.forEach((material) => {
+        const mat = material as THREE.MeshStandardMaterial;
+        mat.color.set(new THREE.Color(shirtBaseHex(color)));
+        mat.roughness = shirtRoughness(color, fabric);
+        mat.needsUpdate = true;
+      });
+    });
   }, [color, fabric, isModelLoaded]);
 
   // 5. Artwork projection onto the fabric (shader-based, hugs the surface).
