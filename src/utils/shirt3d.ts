@@ -360,9 +360,8 @@ export function prepareShirtModel(
 
 
 /**
- * Lightweight preparation for the higher-poly pullover hoodie asset.
- * The shirt's visibility precomputation is expensive for this model, so use a
- * neutral visibility attribute while retaining the print projection shader.
+ * Prepare the high-poly pullover hoodie and compute print visibility across
+ * all of its mesh parts so occlusion works across body, sleeves and hood.
  */
 export function prepareHoodieModel(
   model: THREE.Object3D,
@@ -436,7 +435,6 @@ export function prepareHoodieModel(
 
   const allPositions = new Float32Array(totalVertices * 3);
   const allIndices = new Uint32Array(totalIndices);
-  let vertexCursor = 0;
   let indexCursor = 0;
   for (let p = 0; p < prepared.length; p++) {
     const geometry = prepared[p].geometry;
