@@ -403,11 +403,71 @@ export function prepareHoodieModel(
   const normalization = Number.isFinite(maxDimension) && size.y > 0 ? 0.82 / size.y : 1;
 
   for (const part of prepared) {
-    const { mesh, geometry, original } = part;
+    const { geometry } = part;
     geometry.translate(-center.x, -center.y, -center.z);
     geometry.scale(normalization, normalization, normalization);
     geometry.computeBoundingBox();
     geometry.computeBoundingSphere();
+  }
+
+  // Compute occlusion against the ENTIRE hoodie surface, not one mesh at a
+  // time. The GLB splits body, sleeves, hood and details into separate meshes;
+  // per-mesh visibility cannot see a sleeve/body panel that occludes another
+  // panel, which lets back/sleeve artwork leak onto the front torso.
+  const vertexOffsets: number[] = [];
+  let totalVertices = 0;
+  let totalIndices = 0;
+  const indexArrays: ArrayLike<number>[] = [];
+  for (const { geometry } of prepared) {
+    const position = geometry.getAttribute('position');
+    vertexOffsets.push(totalVertices);
+    totalVertices += position?.count ?? 0;
+    const index = geometry.getIndex();
+    const count = index ? index.count : (position?.count ?? 0);
+    totalIndices += count;
+    if (index) {
+      indexArrays.push(index.array as ArrayLike<number>);
+    } else {
+      const sequential = new Uint32Array(count);
+      for (let i = 0; i < count; i++) sequential[i] = i;
+      indexArrays.push(sequential);
+    }
+  }
+
+  const allPositions = new Float32Array(totalVertices * 3);
+  const allIndices = new Uint32Array(totalIndices);
+  let vertexCursor = 0;
+  let indexCursor = 0;
+  for (let p = 0; p < prepared.length; p++) {
+    const geometry = prepared[p].geometry;
+    const position = geometry.getAttribute('position');
+    const offset = vertexOffsets[p];
+    for (let i = 0; i < position.count; i++) {
+      allPositions[(offset + i) * 3] = position.getX(i);
+      allPositions[(offset + i) * 3 + 1] = position.getY(i);
+      allPositions[(offset + i) * 3 + 2] = position.getZ(i);
+    }
+    const indices = indexArrays[p];
+    for (let i = 0; i < indices.length; i++) allIndices[indexCursor++] = indices[i] + offset;
+  }
+
+  const allVisibility = new Float32Array(totalVertices * 4).fill(1);
+  SIDE_ORDER.forEach((side, channel) => {
+    const visible = computeAxisVisibility(allPositions, allIndices, SIDE_AXIS[side], {
+      // Hoodie is normalized to ~0.82 units; a finer grid helps retain details
+      // around the armholes without making the visibility test too permissive.
+      cell: 0.008,
+      eps: 0.004
+    });
+    for (let i = 0; i < totalVertices; i++) allVisibility[i * 4 + channel] = visible[i];
+  });
+
+  for (let p = 0; p < prepared.length; p++) {
+    const { mesh, geometry, original } = prepared[p];
+    const count = geometry.getAttribute('position').count;
+    const offset = vertexOffsets[p];
+    const localVisibility = allVisibility.slice(offset * 4, (offset + count) * 4);
+    geometry.setAttribute('printVis', new THREE.BufferAttribute(localVisibility, 4));
 
     mesh.removeFromParent();
     mesh.geometry = geometry;
@@ -431,10 +491,7 @@ export function prepareHoodieModel(
       side: THREE.DoubleSide
     });
     applyPrintShader(material, uniforms);
-    // Compute side-specific visibility for the hoodie too. A neutral all-ones
-    // attribute lets every projection pass through to the front-facing torso,
-    // which made back and sleeve artwork appear stacked on the front.
-    attachPrintVisibility(geometry);
+    // Visibility was precomputed above across all hoodie meshes together.
     mesh.material = material;
     meshes.push(mesh);
   }
