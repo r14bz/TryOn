@@ -56,6 +56,8 @@ export interface PrintLayerUniforms {
   uPrintSize: { value: THREE.Vector2 };
   uPrintSide: { value: THREE.Vector4 };
   uPrintSeam: { value: number };
+  /** Enable explicit front/back/sleeve spatial clipping for the hoodie asset only. */
+  uPrintRegion: { value: number };
   uPrintRot: { value: number };
   uPrintRough: { value: number };
   uPrintOn: { value: number };
@@ -73,6 +75,7 @@ function createLayerUniforms(): PrintLayerUniforms {
     uPrintSize: { value: new THREE.Vector2(0.17, 0.17) },
     uPrintSide: { value: new THREE.Vector4(1, 0, 0, 0) },
     uPrintSeam: { value: 0 },
+    uPrintRegion: { value: 0 },
     uPrintRot: { value: 0 },
     uPrintRough: { value: 0.8 },
     uPrintOn: { value: 0 }
@@ -95,6 +98,7 @@ uniform vec3 uPrintUp${i};
 uniform vec2 uPrintSize${i};
 uniform vec4 uPrintSide${i};
 uniform float uPrintSeam${i};
+uniform float uPrintRegion${i};
 uniform float uPrintRot${i};
 uniform float uPrintRough${i};
 uniform float uPrintOn${i};`
@@ -118,10 +122,22 @@ uniform float uPrintOn${i};`
   // Hanya permukaan yang PERTAMA terkena proyektor: kain di belakangnya (sisi dalam
   // lengan, dinding badan di balik lubang lengan) tidak ikut tercetak
   float seen = smoothstep(0.35, 0.65, dot(vPrintVis, uPrintSide${i}));
+  // Keep hoodie artwork in the physical region matching the selected panel.
+  // +Z is the front, -Z is the back, +X/-X are the wearer's left/right sleeves.
+  // This positional mask prevents projections from leaking across torso panels.
+  float frontRegion = smoothstep(-0.012, 0.012, vPrintPos.z);
+  float backRegion = 1.0 - frontRegion;
+  float sleeveLeftRegion = smoothstep(0.205, 0.245, vPrintPos.x);
+  float sleeveRightRegion = smoothstep(0.205, 0.245, -vPrintPos.x);
+  float hoodieRegion = uPrintSide${i}.x * frontRegion
+    + uPrintSide${i}.y * backRegion
+    + uPrintSide${i}.z * sleeveLeftRegion
+    + uPrintSide${i}.w * sleeveRightRegion;
+  float region = mix(1.0, hoodieRegion, uPrintRegion${i});
   // Sablon lengan berhenti di jahitan lengan
   float seam = mix(1.0, smoothstep(${SEAM_START.toFixed(3)}, ${SEAM_END.toFixed(3)}, uPrintSeam${i} * vPrintPos.x), abs(uPrintSeam${i}));
   bool inside = uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0;
-  float pm = (uPrintOn${i} > 0.5 && gl_FrontFacing && inside) ? dc.a * facing * seen * seam : 0.0;
+  float pm = (uPrintOn${i} > 0.5 && gl_FrontFacing && inside) ? dc.a * facing * seen * seam * region : 0.0;
   diffuseColor.rgb = mix(diffuseColor.rgb, dc.rgb, pm);
   printRough = mix(printRough, uPrintRough${i}, pm);
   printMask = max(printMask, pm);
@@ -165,7 +181,7 @@ ${blocks}`
 roughnessFactor = mix(roughnessFactor, printRough, printMask);`
       );
   };
-  material.customProgramCacheKey = () => `sablon-print-projection-v4-${layers.length}`;
+  material.customProgramCacheKey = () => `sablon-print-projection-v5-${layers.length}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -369,6 +385,9 @@ export function prepareHoodieModel(
   fabric: FabricInfo
 ): { mesh: THREE.Mesh | null; meshes: THREE.Mesh[]; uniforms: PrintLayerUniforms[] } {
   const uniforms = createPrintUniforms();
+  // Enable coordinate-region clipping for hoodie projections only; ordinary
+  // T-shirt placement keeps the pre-existing projection path unchanged.
+  uniforms.forEach((u) => { u.uPrintRegion.value = 1; });
   const meshes: THREE.Mesh[] = [];
 
   // Bake every mesh's transforms into shared model-local coordinates first.
