@@ -125,10 +125,14 @@ uniform float uPrintOn${i};`
   // Keep hoodie artwork in the physical region matching the selected panel.
   // +Z is the front, -Z is the back, +X/-X are the wearer's left/right sleeves.
   // This positional mask prevents projections from leaking across torso panels.
-  float frontRegion = smoothstep(-0.012, 0.012, vPrintPos.z);
-  float backRegion = 1.0 - frontRegion;
-  float sleeveLeftRegion = smoothstep(0.205, 0.245, vPrintPos.x);
-  float sleeveRightRegion = smoothstep(0.205, 0.245, -vPrintPos.x);
+  // The hoodie geometry is normalized to ~0.82 units high in prepareHoodieModel.
+  // Keep body panels separated by the garment's depth axis, and only allow sleeve
+  // projections well outside the torso. A narrow transition avoids fuzzy overlaps
+  // around the side seams while preserving a small antialiasing-friendly fade.
+  float frontRegion = smoothstep(0.008, 0.028, vPrintPos.z);
+  float backRegion = 1.0 - smoothstep(-0.028, -0.008, vPrintPos.z);
+  float sleeveLeftRegion = smoothstep(0.225, 0.255, vPrintPos.x);
+  float sleeveRightRegion = smoothstep(0.225, 0.255, -vPrintPos.x);
   float hoodieRegion = uPrintSide${i}.x * frontRegion
     + uPrintSide${i}.y * backRegion
     + uPrintSide${i}.z * sleeveLeftRegion
