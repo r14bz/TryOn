@@ -125,7 +125,14 @@ export default function App() {
       : currentSide === 'sleeve_left' ? 'sleeve_left'
       : currentSide === 'sleeve_right' ? 'sleeve_right'
       : 'chest_center';
-    const preset = PLACEMENT_PRESETS.find((p) => p.id === (presetId ?? fallback)) ?? PLACEMENT_PRESETS[0];
+
+    // When the user has selected a specific garment side in the studio toolbar,
+    // that side must take precedence over a sample artwork's suggested front preset.
+    // Otherwise a sample chosen while viewing the back/sleeve is silently assigned
+    // to the front, which looks like the back print has been projected onto the front.
+    const resolvedPresetId: PlacementPresetId =
+      currentSide === 'front' ? (presetId ?? fallback) : fallback;
+    const preset = PLACEMENT_PRESETS.find((p) => p.id === resolvedPresetId) ?? PLACEMENT_PRESETS[0];
     const layer: GraphicSettings = {
       id: createGraphicId(),
       visible: true,
