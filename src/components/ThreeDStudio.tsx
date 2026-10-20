@@ -21,6 +21,7 @@ import {
 } from '../types/sablon';
 import { CanvasEditDock } from './CanvasEditDock';
 import {
+  HOODIE_SLEEVE_VIEW,
   PrintLayerUniforms,
   PrintTextureEntry,
   buildPrintTexture,
@@ -121,14 +122,19 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   const lastPointerRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Map placement side to target viewing angle
+  // Kaos: lengan dilihat tepat dari samping (+/-90 derajat). Hoodie: lengannya panjang dan menjulur
+  // ke samping, jadi dilihat dari depan-samping-atas supaya lengan dan sablonnya terlihat utuh.
+  const isHoodie = garmentModel === 'hoodie';
   const getAngleForSide = (side: PlacementSide): number => {
     switch (side) {
       case 'front': return 0;
-      case 'sleeve_left': return -Math.PI / 2;
+      case 'sleeve_left': return isHoodie ? -HOODIE_SLEEVE_VIEW.yaw : -Math.PI / 2;
       case 'back': return Math.PI;
-      case 'sleeve_right': return Math.PI / 2;
+      case 'sleeve_right': return isHoodie ? HOODIE_SLEEVE_VIEW.yaw : Math.PI / 2;
     }
   };
+  const getPitchForSide = (side: PlacementSide): number =>
+    isHoodie && (side === 'sleeve_left' || side === 'sleeve_right') ? HOODIE_SLEEVE_VIEW.pitch : 0;
 
   // Closest equivalent of the side's angle to the current rotation (no multi-turn spin-back)
   const nearestAngleForSide = (side: PlacementSide): number => {
@@ -140,7 +146,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   // Sync rotation with currentSide prop
   useEffect(() => {
     targetRotationY.current = nearestAngleForSide(currentSide);
-    targetRotationX.current = 0;
+    targetRotationX.current = getPitchForSide(currentSide);
   }, [currentSide]);
 
   // 1. Initialize Three.js Scene & Load Real 3D T-Shirt GLB
@@ -635,7 +641,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
         <button
           onClick={() => {
             targetRotationY.current = nearestAngleForSide(currentSide);
-            targetRotationX.current = 0;
+            targetRotationX.current = getPitchForSide(currentSide);
             setCameraDistance(1.35);
           }}
           title="Reset Sudut Pandang"

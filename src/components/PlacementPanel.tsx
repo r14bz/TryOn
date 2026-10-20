@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, RotateCw, Sliders } from 'lucide-react';
+import { ChevronDown, ChevronUp, Sliders } from 'lucide-react';
 import { GraphicSettings } from '../types/sablon';
 import { isDesktopViewport } from '../utils/viewport';
 
@@ -137,20 +137,39 @@ export const PlacementPanel: React.FC<PlacementPanelProps> = ({ graphic, onGraph
             <span className={valueCls}>{graphic.scale.toFixed(2)}×</span>
           </div>
 
-          {/* Putar & Tengah */}
-          <div className="flex items-center justify-end gap-1.5 pt-1.5 border-t border-zinc-800/70">
+          {/* Putar */}
+          <div className="flex items-center gap-1.5">
+            <span className={labelCls}>Putar</span>
             <button
-              onClick={() => onGraphicChange({ rotation: (graphic.rotation + 15) % 360, preset: 'custom' })}
-              className="px-2.5 h-7 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-[10px] text-zinc-300 flex items-center gap-1 touch-manipulation"
-              title="Putar Sablon 15°"
+              className={stepBtn}
+              onClick={() => onGraphicChange({ rotation: Math.max(-180, graphic.rotation - 5), preset: 'custom' })}
             >
-              <RotateCw className="w-3 h-3 text-brand" />
-              <span>Putar {graphic.rotation}°</span>
+              −
             </button>
+            <input
+              type="range"
+              min="-180"
+              max="180"
+              step="1"
+              value={Math.max(-180, Math.min(180, graphic.rotation > 180 ? graphic.rotation - 360 : graphic.rotation))}
+              onChange={(e) => onGraphicChange({ rotation: Number(e.target.value), preset: 'custom' })}
+              className={rangeCls}
+            />
+            <button
+              className={stepBtn}
+              onClick={() => onGraphicChange({ rotation: Math.min(180, graphic.rotation + 5), preset: 'custom' })}
+            >
+              +
+            </button>
+            <span className={valueCls}>{Math.round(graphic.rotation)}°</span>
+          </div>
+
+          {/* Tengah */}
+          <div className="flex items-center justify-end gap-1.5 pt-1.5 border-t border-zinc-800/70">
             <button
               onClick={() => onGraphicChange({ x: 0, y: 0, rotation: 0, preset: 'custom' })}
               className="px-2.5 h-7 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-[10px] text-zinc-400 hover:text-white touch-manipulation"
-              title="Reset Posisi ke Tengah"
+              title="Reset Posisi & Putaran ke Tengah"
             >
               Tengah
             </button>

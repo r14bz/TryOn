@@ -47,6 +47,51 @@ const HOODIE_SIDE_ANCHOR_XZ: Record<PlacementSide, [number, number]> = {
   sleeve_right: [-0.255, -0.018]
 };
 
+/**
+ * Kode panel hoodie. Tiap vertex pada GLB hoodie membawa atribut `_PANEL` (diisi saat GLB dibuat
+ * dari 28 pulau UV pada mesh) sehingga sablon bisa dibatasi per bagian kain, bukan per koordinat.
+ */
+export const HOODIE_PANEL = {
+  FRONT: 1, // badan depan
+  BACK: 2, // badan belakang
+  POCKET: 3, // kantong kanguru (bagian luar)
+  SLEEVE_LEFT: 4, // lengan kiri pemakai (+x)
+  SLEEVE_RIGHT: 5, // lengan kanan pemakai (-x)
+  HOOD: 6, // tudung (kedua lapis) - tidak boleh tercetak
+  RIB: 7, // rib pinggang & manset - tidak boleh tercetak
+  CORD: 8, // tali & mata ayam tudung - tidak boleh tercetak
+  INNER: 9 // lapisan dalam - tidak boleh tercetak
+} as const;
+
+/** Sisi sablon yang boleh tercetak pada tiap panel, urutan = SIDE_ORDER [depan, belakang, lengan kiri, lengan kanan]. */
+const HOODIE_PANEL_PERMISSION: Record<number, [number, number, number, number]> = {
+  [HOODIE_PANEL.FRONT]: [1, 0, 0, 0],
+  [HOODIE_PANEL.POCKET]: [1, 0, 0, 0],
+  [HOODIE_PANEL.BACK]: [0, 1, 0, 0],
+  [HOODIE_PANEL.SLEEVE_LEFT]: [0, 0, 1, 0],
+  [HOODIE_PANEL.SLEEVE_RIGHT]: [0, 0, 0, 1]
+};
+
+/**
+ * Lengan hoodie dicetak dengan pemetaan silinder (sablon melengkung mengikuti lengan, tidak melar).
+ * Semua nilai dalam ruang mesh hoodie yang sudah dinormalisasi (tinggi 0.82), hasil pengukuran
+ * garis tengah lengan pada GLB hoodie. Ganti GLB => ukur ulang.
+ */
+const HOODIE_SLEEVE = {
+  /** radius lengan atas, dipakai mengubah sudut keliling menjadi jarak busur */
+  armRadius: 0.093,
+  /** jarak dari titik bahu ke pusat sablon saat slider Atas/Bawah = 0 */
+  alongStart: 0.17,
+  /** geser Kiri/Kanan -50..50% memutar sablon mengelilingi lengan sebesar +/- sudut ini (rad) */
+  maxAngle: 1.2,
+  /** point = titik garis tengah dekat bahu, axis = arah bahu->manset, facing = arah sablon menghadap (depan-atas-luar) */
+  left: { point: [0.299, 0.173, -0.036], axis: [0.9007, -0.4339, -0.021], facing: [0.2269, 0.4288, 0.8744] },
+  right: { point: [-0.299, 0.173, -0.036], axis: [-0.9007, -0.4339, -0.021], facing: [-0.2269, 0.4288, 0.8744] }
+} as const;
+
+/** Sudut kamera (rad) saat melihat lengan hoodie dari samping-depan-atas agar lengan terlihat utuh. */
+export const HOODIE_SLEEVE_VIEW = { pitch: 0.443, yaw: 0.254 } as const;
+
 /** Batas jahitan lengan: sablon lengan tidak boleh melewati lingkar lengan ke badan. */
 const SEAM_START = 0.165;
 const SEAM_END = 0.195;
@@ -63,8 +108,9 @@ export interface PrintLayerUniforms {
   uPrintSize: { value: THREE.Vector2 };
   uPrintSide: { value: THREE.Vector4 };
   uPrintSeam: { value: number };
-  /** Enable explicit front/back/sleeve spatial clipping for the hoodie asset only. */
-  uPrintRegion: { value: number };
+  /** 1 = pemetaan silinder (lengan hoodie), 0 = proyeksi datar */
+  uPrintCyl: { value: number };
+  uPrintArmR: { value: number };
   uPrintRot: { value: number };
   uPrintRough: { value: number };
   uPrintOn: { value: number };
@@ -82,7 +128,8 @@ function createLayerUniforms(): PrintLayerUniforms {
     uPrintSize: { value: new THREE.Vector2(0.17, 0.17) },
     uPrintSide: { value: new THREE.Vector4(1, 0, 0, 0) },
     uPrintSeam: { value: 0 },
-    uPrintRegion: { value: 0 },
+    uPrintCyl: { value: 0 },
+    uPrintArmR: { value: HOODIE_SLEEVE.armRadius },
     uPrintRot: { value: 0 },
     uPrintRough: { value: 0.8 },
     uPrintOn: { value: 0 }
@@ -94,7 +141,17 @@ export function createPrintUniforms(): PrintLayerUniforms[] {
   return Array.from({ length: MAX_GRAPHICS }, () => createLayerUniforms());
 }
 
-export function applyPrintShader(material: THREE.MeshStandardMaterial, layers: PrintLayerUniforms[]) {
+export interface PrintShaderOptions {
+  /** Varian hoodie: batas panel lewat vis per-vertex + pemetaan silinder untuk lengan. Kaos tidak memakainya. */
+  hoodie?: boolean;
+}
+
+export function applyPrintShader(
+  material: THREE.MeshStandardMaterial,
+  layers: PrintLayerUniforms[],
+  options: PrintShaderOptions = {}
+) {
+  const hoodie = options.hoodie === true;
   const declarations = layers
     .map(
       (_, i) => `uniform sampler2D uPrintMap${i};
@@ -105,16 +162,15 @@ uniform vec3 uPrintUp${i};
 uniform vec2 uPrintSize${i};
 uniform vec4 uPrintSide${i};
 uniform float uPrintSeam${i};
-uniform float uPrintRegion${i};
 uniform float uPrintRot${i};
 uniform float uPrintRough${i};
-uniform float uPrintOn${i};`
+uniform float uPrintOn${i};${hoodie ? `\nuniform float uPrintCyl${i};\nuniform float uPrintArmR${i};` : ''}`
     )
     .join('\n');
 
   // Tiap layer menimpa layer sebelumnya (layer berikutnya di atas). Tekstur selalu
   // di-sample (alur seragam) lalu di-mask sesudahnya.
-  const blocks = layers
+  const shirtBlocks = layers
     .map(
       (_, i) => `{
   vec3 rel = vPrintPos - uPrintOrigin${i};
@@ -129,35 +185,53 @@ uniform float uPrintOn${i};`
   // Hanya permukaan yang PERTAMA terkena proyektor: kain di belakangnya (sisi dalam
   // lengan, dinding badan di balik lubang lengan) tidak ikut tercetak
   float seen = smoothstep(0.35, 0.65, dot(vPrintVis, uPrintSide${i}));
-  // Keep hoodie artwork in the physical region matching the selected panel.
-  // +Z is the front, -Z is the back, +X/-X are the wearer's left/right sleeves.
-  // This positional mask prevents projections from leaking across torso panels.
-  // The hoodie geometry is normalized to ~0.82 units high in prepareHoodieModel.
-  // Keep body panels separated by the garment's depth axis, and only allow sleeve
-  // projections well outside the torso. A narrow transition avoids fuzzy overlaps
-  // around the side seams while preserving a small antialiasing-friendly fade.
-  float frontRegion = smoothstep(0.008, 0.028, vPrintPos.z);
-  // The hood is part of the rear silhouette but must not receive torso-back prints.
-  // Clip the upper back panel just below the hood/neck seam.
-  float backTorsoRegion = 1.0 - smoothstep(0.205, 0.235, vPrintPos.y);
-  float backRegion = (1.0 - smoothstep(-0.028, -0.008, vPrintPos.z)) * backTorsoRegion;
-  float sleeveLeftRegion = smoothstep(0.225, 0.255, vPrintPos.x);
-  float sleeveRightRegion = smoothstep(0.225, 0.255, -vPrintPos.x);
-  float hoodieRegion = uPrintSide${i}.x * frontRegion
-    + uPrintSide${i}.y * backRegion
-    + uPrintSide${i}.z * sleeveLeftRegion
-    + uPrintSide${i}.w * sleeveRightRegion;
-  float region = mix(1.0, hoodieRegion, uPrintRegion${i});
   // Sablon lengan berhenti di jahitan lengan
   float seam = mix(1.0, smoothstep(${SEAM_START.toFixed(3)}, ${SEAM_END.toFixed(3)}, uPrintSeam${i} * vPrintPos.x), abs(uPrintSeam${i}));
   bool inside = uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0;
-  float pm = (uPrintOn${i} > 0.5 && gl_FrontFacing && inside) ? dc.a * facing * seen * seam * region : 0.0;
+  float pm = (uPrintOn${i} > 0.5 && gl_FrontFacing && inside) ? dc.a * facing * seen * seam : 0.0;
   diffuseColor.rgb = mix(diffuseColor.rgb, dc.rgb, pm);
   printRough = mix(printRough, uPrintRough${i}, pm);
   printMask = max(printMask, pm);
 }`
     )
     .join('\n');
+
+  // Varian hoodie. Tidak ada klip koordinat: bagian kain yang boleh tercetak ditentukan oleh
+  // vPrintVis (diisi dari panel GLB), sehingga tudung, tali, rib, dan lapisan dalam tidak ikut
+  // tercetak dan tudung otomatis menutupi sablon punggung lewat z-buffer.
+  // Lengan: sudut keliling (ang) dan jarak sepanjang lengan (along) menjadi koordinat sablon.
+  const hoodieBlocks = layers
+    .map(
+      (_, i) => `{
+  vec3 rel = vPrintPos - uPrintOrigin${i};
+  vec2 p;
+  float facing;
+  if (uPrintCyl${i} > 0.5) {
+    vec3 armAxis = -uPrintUp${i};
+    float along = dot(rel, armAxis);
+    vec3 radial = rel - along * armAxis;
+    float ang = atan(dot(radial, uPrintRight${i}), dot(radial, uPrintAxis${i}));
+    p = vec2(ang * uPrintArmR${i}, -along);
+    facing = 1.0 - smoothstep(1.05, 1.35, abs(ang));
+  } else {
+    p = vec2(dot(rel, uPrintRight${i}), dot(rel, uPrintUp${i}));
+    facing = smoothstep(0.30, 0.65, dot(pNrm, uPrintAxis${i}));
+  }
+  float cr = cos(uPrintRot${i});
+  float sr = sin(uPrintRot${i});
+  p = vec2(cr * p.x - sr * p.y, sr * p.x + cr * p.y);
+  vec2 uv = p / uPrintSize${i} + 0.5;
+  vec4 dc = texture2D(uPrintMap${i}, clamp(uv, 0.0, 1.0));
+  float seen = smoothstep(0.35, 0.65, dot(vPrintVis, uPrintSide${i}));
+  bool inside = uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0;
+  float pm = (uPrintOn${i} > 0.5 && gl_FrontFacing && inside) ? dc.a * facing * seen : 0.0;
+  diffuseColor.rgb = mix(diffuseColor.rgb, dc.rgb, pm);
+  printRough = mix(printRough, uPrintRough${i}, pm);
+  printMask = max(printMask, pm);
+}`
+    )
+    .join('\n');
+  const blocks = hoodie ? hoodieBlocks : shirtBlocks;
 
   material.onBeforeCompile = (shader) => {
     layers.forEach((u, i) => {
@@ -195,7 +269,7 @@ ${blocks}`
 roughnessFactor = mix(roughnessFactor, printRough, printMask);`
       );
   };
-  material.customProgramCacheKey = () => `sablon-print-projection-v5-${layers.length}`;
+  material.customProgramCacheKey = () => `sablon-print-projection-${hoodie ? 'hoodie-v6' : 'v4'}-${layers.length}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -244,8 +318,34 @@ export function attachPrintVisibility(geometry: THREE.BufferGeometry) {
 // Frame proyektor & penempatan
 // ---------------------------------------------------------------------------
 /** Frame proyektor (ruang lokal mesh) untuk tiap sisi. gx/gy: -50..50 (%) dari slider. */
-export function getPrintFrame(side: PlacementSide, gx: number, gy: number, garment: GarmentModel = 'shirt') {
+export interface PrintFrame {
+  axis: THREE.Vector3;
+  origin: THREE.Vector3;
+  right: THREE.Vector3;
+  up: THREE.Vector3;
+  /** hanya ada untuk pemetaan silinder (lengan hoodie): radius lengan */
+  armRadius?: number;
+}
+
+export function getPrintFrame(side: PlacementSide, gx: number, gy: number, garment: GarmentModel = 'shirt'): PrintFrame {
   const place = getModelPlacement(side, garment);
+
+  if (garment === 'hoodie' && (side === 'sleeve_left' || side === 'sleeve_right')) {
+    // Pemetaan silinder: up = ke arah bahu, axis = arah sablon menghadap (tegak lurus lengan),
+    // right = keliling lengan. Slider Kiri/Kanan memutar sablon mengelilingi lengan,
+    // slider Atas/Bawah menggesernya sepanjang lengan.
+    const cfg = side === 'sleeve_left' ? HOODIE_SLEEVE.left : HOODIE_SLEEVE.right;
+    const arm = new THREE.Vector3(cfg.axis[0], cfg.axis[1], cfg.axis[2]).normalize();
+    const facing0 = new THREE.Vector3(cfg.facing[0], cfg.facing[1], cfg.facing[2]).normalize();
+    const right0 = new THREE.Vector3().crossVectors(facing0, arm).normalize();
+    const phi = (gx / 50) * HOODIE_SLEEVE.maxAngle;
+    const facing = facing0.clone().multiplyScalar(Math.cos(phi)).addScaledVector(right0, Math.sin(phi)).normalize();
+    const right = new THREE.Vector3().crossVectors(facing, arm).normalize();
+    const along = HOODIE_SLEEVE.alongStart + (gy / 50) * place.rangeY;
+    const origin = new THREE.Vector3(cfg.point[0], cfg.point[1], cfg.point[2]).addScaledVector(arm, along);
+    return { axis: facing, origin, right, up: arm.clone().negate(), armRadius: HOODIE_SLEEVE.armRadius };
+  }
+
   const a = SIDE_AXIS[side];
   const axis = new THREE.Vector3(a[0], a[1], a[2]).normalize();
   const [ox, oz] = (garment === 'hoodie' ? HOODIE_SIDE_ANCHOR_XZ : SIDE_ANCHOR_XZ)[side];
@@ -292,6 +392,8 @@ export function syncLayerUniforms(
     u.uPrintAxis.value.copy(frame.axis);
     u.uPrintRight.value.copy(frame.right);
     u.uPrintUp.value.copy(frame.up);
+    u.uPrintCyl.value = frame.armRadius ? 1 : 0;
+    u.uPrintArmR.value = frame.armRadius ?? HOODIE_SLEEVE.armRadius;
 
     // Ukuran dari rumus yang sama dengan tampilan 2D (placement.ts)
     const width = getModelPlacement(g.side, garment).baseWidth * g.scale;
@@ -399,9 +501,6 @@ export function prepareHoodieModel(
   fabric: FabricInfo
 ): { mesh: THREE.Mesh | null; meshes: THREE.Mesh[]; uniforms: PrintLayerUniforms[] } {
   const uniforms = createPrintUniforms();
-  // Enable coordinate-region clipping for hoodie projections only; ordinary
-  // T-shirt placement keeps the pre-existing projection path unchanged.
-  uniforms.forEach((u) => { u.uPrintRegion.value = 1; });
   const meshes: THREE.Mesh[] = [];
 
   // Bake every mesh's transforms into shared model-local coordinates first.
@@ -442,63 +541,86 @@ export function prepareHoodieModel(
     geometry.computeBoundingSphere();
   }
 
-  // Compute occlusion against the ENTIRE hoodie surface, not one mesh at a
-  // time. The GLB splits body, sleeves, hood and details into separate meshes;
-  // per-mesh visibility cannot see a sleeve/body panel that occludes another
-  // panel, which lets back/sleeve artwork leak onto the front torso.
-  const vertexOffsets: number[] = [];
-  let totalVertices = 0;
-  let totalIndices = 0;
-  const indexArrays: ArrayLike<number>[] = [];
-  for (const { geometry } of prepared) {
-    const position = geometry.getAttribute('position');
-    vertexOffsets.push(totalVertices);
-    totalVertices += position?.count ?? 0;
-    const index = geometry.getIndex();
-    const count = index ? index.count : (position?.count ?? 0);
-    totalIndices += count;
-    if (index) {
-      indexArrays.push(index.array as ArrayLike<number>);
-    } else {
-      const sequential = new Uint32Array(count);
-      for (let i = 0; i < count; i++) sequential[i] = i;
-      indexArrays.push(sequential);
-    }
-  }
+  // Visibilitas sablon per vertex. Jalur utama: GLB membawa atribut `_PANEL` sehingga tiap sisi
+  // sablon hanya boleh tercetak pada panel kainnya (depan/kantong, belakang, tiap lengan); tudung,
+  // tali, rib, dan lapisan dalam tidak pernah tercetak. Batasnya jahitan sebenarnya (tajam), dan
+  // tudung menutupi sablon punggung lewat z-buffer. Jalur cadangan (GLB tanpa `_PANEL`): uji
+  // oklusi sinar seperti kaos.
+  const panelOf = (geometry: THREE.BufferGeometry) => geometry.getAttribute('_panel') ?? geometry.getAttribute('_PANEL');
+  const usePanels = prepared.every(({ geometry }) => !!panelOf(geometry));
+  const visibilityByPart: Float32Array[] = [];
 
-  const allPositions = new Float32Array(totalVertices * 3);
-  const allIndices = new Uint32Array(totalIndices);
-  let indexCursor = 0;
-  for (let p = 0; p < prepared.length; p++) {
-    const geometry = prepared[p].geometry;
-    const position = geometry.getAttribute('position');
-    const offset = vertexOffsets[p];
-    for (let i = 0; i < position.count; i++) {
-      allPositions[(offset + i) * 3] = position.getX(i);
-      allPositions[(offset + i) * 3 + 1] = position.getY(i);
-      allPositions[(offset + i) * 3 + 2] = position.getZ(i);
+  if (usePanels) {
+    for (const { geometry } of prepared) {
+      const panel = panelOf(geometry)!;
+      const vis = new Float32Array(panel.count * 4);
+      for (let i = 0; i < panel.count; i++) {
+        const permission = HOODIE_PANEL_PERMISSION[Math.round(panel.getX(i))];
+        if (permission) vis.set(permission, i * 4);
+      }
+      visibilityByPart.push(vis);
     }
-    const indices = indexArrays[p];
-    for (let i = 0; i < indices.length; i++) allIndices[indexCursor++] = indices[i] + offset;
-  }
+  } else {
+    console.warn('[Try-D] GLB hoodie tanpa atribut _PANEL: memakai uji oklusi (tudung/kantong/tali bisa ikut tercetak).');
+    // Compute occlusion against the ENTIRE hoodie surface, not one mesh at a
+    // time. The GLB splits body, sleeves, hood and details into separate meshes;
+    // per-mesh visibility cannot see a sleeve/body panel that occludes another
+    // panel, which lets back/sleeve artwork leak onto the front torso.
+    const vertexOffsets: number[] = [];
+    let totalVertices = 0;
+    let totalIndices = 0;
+    const indexArrays: ArrayLike<number>[] = [];
+    for (const { geometry } of prepared) {
+      const position = geometry.getAttribute('position');
+      vertexOffsets.push(totalVertices);
+      totalVertices += position?.count ?? 0;
+      const index = geometry.getIndex();
+      const count = index ? index.count : (position?.count ?? 0);
+      totalIndices += count;
+      if (index) {
+        indexArrays.push(index.array as ArrayLike<number>);
+      } else {
+        const sequential = new Uint32Array(count);
+        for (let i = 0; i < count; i++) sequential[i] = i;
+        indexArrays.push(sequential);
+      }
+    }
 
-  const allVisibility = new Float32Array(totalVertices * 4).fill(1);
-  SIDE_ORDER.forEach((side, channel) => {
-    const visible = computeAxisVisibility(allPositions, allIndices, SIDE_AXIS[side], {
-      // Hoodie is normalized to ~0.82 units; a finer grid helps retain details
-      // around the armholes without making the visibility test too permissive.
-      cell: 0.008,
-      eps: 0.004
+    const allPositions = new Float32Array(totalVertices * 3);
+    const allIndices = new Uint32Array(totalIndices);
+    let indexCursor = 0;
+    for (let p = 0; p < prepared.length; p++) {
+      const geometry = prepared[p].geometry;
+      const position = geometry.getAttribute('position');
+      const offset = vertexOffsets[p];
+      for (let i = 0; i < position.count; i++) {
+        allPositions[(offset + i) * 3] = position.getX(i);
+        allPositions[(offset + i) * 3 + 1] = position.getY(i);
+        allPositions[(offset + i) * 3 + 2] = position.getZ(i);
+      }
+      const indices = indexArrays[p];
+      for (let i = 0; i < indices.length; i++) allIndices[indexCursor++] = indices[i] + offset;
+    }
+
+    const allVisibility = new Float32Array(totalVertices * 4).fill(1);
+    SIDE_ORDER.forEach((side, channel) => {
+      const visible = computeAxisVisibility(allPositions, allIndices, SIDE_AXIS[side], {
+        // Hoodie is normalized to ~0.82 units; a finer grid helps retain details
+        // around the armholes without making the visibility test too permissive.
+        cell: 0.008,
+        eps: 0.004
+      });
+      for (let i = 0; i < totalVertices; i++) allVisibility[i * 4 + channel] = visible[i];
     });
-    for (let i = 0; i < totalVertices; i++) allVisibility[i * 4 + channel] = visible[i];
-  });
+    for (let p = 0; p < prepared.length; p++) {
+      const count = prepared[p].geometry.getAttribute('position').count;
+      visibilityByPart.push(allVisibility.slice(vertexOffsets[p] * 4, (vertexOffsets[p] + count) * 4));
+    }
+  }
 
   for (let p = 0; p < prepared.length; p++) {
     const { mesh, geometry, original } = prepared[p];
-    const count = geometry.getAttribute('position').count;
-    const offset = vertexOffsets[p];
-    const localVisibility = allVisibility.slice(offset * 4, (offset + count) * 4);
-    geometry.setAttribute('printVis', new THREE.BufferAttribute(localVisibility, 4));
+    geometry.setAttribute('printVis', new THREE.BufferAttribute(visibilityByPart[p], 4));
 
     mesh.removeFromParent();
     mesh.geometry = geometry;
@@ -524,8 +646,8 @@ export function prepareHoodieModel(
       aoMap: source.aoMap || null,
       side: THREE.DoubleSide
     });
-    applyPrintShader(material, uniforms);
-    // Visibility was precomputed above across all hoodie meshes together.
+    applyPrintShader(material, uniforms, { hoodie: true });
+    // Visibilitas sudah dihitung di atas (panel GLB atau oklusi gabungan semua mesh).
     mesh.material = material;
     meshes.push(mesh);
   }
