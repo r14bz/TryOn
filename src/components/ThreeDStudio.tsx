@@ -21,16 +21,20 @@ import {
 } from '../types/sablon';
 import { CanvasEditDock } from './CanvasEditDock';
 import {
+  HOODIE_SLEEVE_VIEW,
   PrintLayerUniforms,
   PrintTextureEntry,
   buildPrintTexture,
   prepareShirtModel,
+  prepareHoodieModel,
   shirtBaseHex,
   shirtRoughness,
   syncLayerUniforms
 } from '../utils/shirt3d';
 
 interface ThreeDStudioProps {
+  garmentModel: 'shirt' | 'hoodie';
+  onGarmentModelChange: (model: 'shirt' | 'hoodie') => void;
   fabric: FabricInfo;
   color: TshirtColor;
   graphics: GraphicSettings[];
@@ -52,6 +56,8 @@ interface ThreeDStudioProps {
 
 
 export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
+  garmentModel,
+  onGarmentModelChange,
   fabric,
   color,
   graphics,
@@ -78,6 +84,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const tshirtRootGroup = useRef<THREE.Group | null>(null);
   const tshirtMeshRef = useRef<THREE.Mesh | null>(null);
+  const garmentMeshesRef = useRef<THREE.Mesh[]>([]);
   const printUniformsRef = useRef<PrintLayerUniforms[] | null>(null);
   // Per-layer artwork textures (rebuilt only when image / ink filter / opacity change)
   const texCacheRef = useRef(
@@ -107,20 +114,27 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   // Interactive Mode: 'rotate' (spin 360) vs 'graphic' (drag graphic)
   const [interactMode, setInteractMode] = useState<'rotate' | 'graphic'>('rotate');
   const [isModelLoaded, setIsModelLoaded] = useState(false);
+  const [modelLoadError, setModelLoadError] = useState<string | null>(null);
+  const [modelLoadProgress, setModelLoadProgress] = useState<number | null>(null);
 
   // Drag tracking
   const isDraggingRef = useRef(false);
   const lastPointerRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Map placement side to target viewing angle
+  // Kaos: lengan dilihat tepat dari samping (+/-90 derajat). Hoodie: lengannya panjang dan menjulur
+  // ke samping, jadi dilihat dari depan-samping-atas supaya lengan dan sablonnya terlihat utuh.
+  const isHoodie = garmentModel === 'hoodie';
   const getAngleForSide = (side: PlacementSide): number => {
     switch (side) {
       case 'front': return 0;
-      case 'sleeve_left': return -Math.PI / 2;
+      case 'sleeve_left': return isHoodie ? -HOODIE_SLEEVE_VIEW.yaw : -Math.PI / 2;
       case 'back': return Math.PI;
-      case 'sleeve_right': return Math.PI / 2;
+      case 'sleeve_right': return isHoodie ? HOODIE_SLEEVE_VIEW.yaw : Math.PI / 2;
     }
   };
+  const getPitchForSide = (side: PlacementSide): number =>
+    isHoodie && (side === 'sleeve_left' || side === 'sleeve_right') ? HOODIE_SLEEVE_VIEW.pitch : 0;
 
   // Closest equivalent of the side's angle to the current rotation (no multi-turn spin-back)
   const nearestAngleForSide = (side: PlacementSide): number => {
@@ -132,7 +146,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   // Sync rotation with currentSide prop
   useEffect(() => {
     targetRotationY.current = nearestAngleForSide(currentSide);
-    targetRotationX.current = 0;
+    targetRotationX.current = getPitchForSide(currentSide);
   }, [currentSide]);
 
   // 1. Initialize Three.js Scene & Load Real 3D T-Shirt GLB
@@ -144,11 +158,19 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     const width = container.clientWidth || 600;
     const height = container.clientHeight || 600;
 
-    const renderer = new THREE.WebGLRenderer({ 
-      antialias: true, 
-      alpha: true, 
-      preserveDrawingBuffer: true 
-    });
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        preserveDrawingBuffer: true
+      });
+    } catch (error) {
+      console.error('Failed to initialize WebGL renderer:', error);
+      setIsModelLoaded(false);
+      setModelLoadError('3D tidak dapat dijalankan di browser ini (WebGL gagal diinisialisasi). Coba aktifkan akselerasi grafis atau gunakan browser/perangkat lain.');
+      return () => { disposed = true; };
+    }
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -199,29 +221,68 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     const shadowMat = new THREE.ShadowMaterial({ opacity: studioBgColor === 'white' ? 0.10 : 0.38 });
     const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
     shadowMesh.rotation.x = -Math.PI / 2;
-    shadowMesh.position.y = -0.38;
+    // The hoodie is displayed slightly smaller than the normalized mesh, so
+    // raise its shadow floor to keep it visually aligned with the hem.
+    shadowMesh.position.y = garmentModel === 'hoodie' ? -0.34 : -0.38;
     shadowMesh.receiveShadow = true;
     rootGroup.add(shadowMesh);
 
     // Load authentic 3D T-Shirt GLB
+    setIsModelLoaded(false);
+    setModelLoadError(null);
+    setModelLoadProgress(null);
+    let loadFinished = false;
+    const loadTimeout = window.setTimeout(() => {
+      if (!disposed && !loadFinished) {
+        setModelLoadError(`Pemuatan model terlalu lama (lebih dari 20 detik). Periksa koneksi atau file model: ${garmentModel === 'hoodie' ? '/models/hoodie.glb' : '/shirt_baked.glb'}`);
+      }
+    }, 20000);
     const loader = new GLTFLoader();
-    loader.load(
-      '/shirt_baked.glb',
-      (gltf) => {
-        if (disposed) return;
-        const model = gltf.scene;
+    const modelUrl = garmentModel === 'hoodie' ? '/models/hoodie.glb' : '/shirt_baked.glb';
+    const initializeModel = (model: THREE.Object3D, sourceUrl: string) => {
+      loadFinished = true;
+      window.clearTimeout(loadTimeout);
+      if (disposed) return;
+      try {
+        const prepared = garmentModel === 'hoodie'
+          ? prepareHoodieModel(model, color, fabric)
+          : prepareShirtModel(model, color, fabric);
 
-        // Material kain + shader sablon + atribut anti-tembus (kode bersama dengan ekspor 3D)
-        const prepared = prepareShirtModel(model, color, fabric);
         printUniformsRef.current = prepared.uniforms;
         tshirtMeshRef.current = prepared.mesh;
+        garmentMeshesRef.current = garmentModel === 'hoodie' && 'meshes' in prepared
+          ? prepared.meshes
+          : prepared.mesh ? [prepared.mesh] : [];
+
+        // The imported hoodie has a normalized height of about 0.82 model units
+        // but is still too dominant in the portrait mobile viewport. Scale only the
+        // object root (not its geometry) so local-space print projection stays aligned.
+        if (garmentModel === 'hoodie') model.scale.setScalar(0.82);
 
         rootGroup.add(model);
+        setModelLoadProgress(100);
         setIsModelLoaded(true);
+      } catch (err) {
+        console.error(`Failed to initialize 3D garment model (${sourceUrl}):`, err);
+        setIsModelLoaded(false);
+        setModelLoadError(`Model berhasil dimuat tetapi gagal diproses (${sourceUrl}).`);
+      }
+    };
+
+    loader.load(
+      modelUrl,
+      (gltf) => initializeModel(gltf.scene, modelUrl),
+      (event) => {
+        if (event.total > 0 && !disposed) setModelLoadProgress(Math.round((event.loaded / event.total) * 100));
       },
-      undefined,
       (err) => {
-        console.error('Failed to load 3D t-shirt model:', err);
+        loadFinished = true;
+        window.clearTimeout(loadTimeout);
+        console.error(`Failed to load 3D garment model (${modelUrl}):`, err);
+        if (!disposed) {
+          setIsModelLoaded(false);
+          setModelLoadError(`Model gagal dimuat. Periksa file ${modelUrl} dan coba muat ulang halaman.`);
+        }
       }
     );
 
@@ -265,6 +326,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
 
     return () => {
       disposed = true;
+      window.clearTimeout(loadTimeout);
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
       resizeObserver?.disconnect();
@@ -290,6 +352,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
       texCacheRef.current.clear();
       pendingTexRef.current.clear();
       tshirtMeshRef.current = null;
+      garmentMeshesRef.current = [];
       tshirtRootGroup.current = null;
       sceneRef.current = null;
       cameraRef.current = null;
@@ -326,13 +389,20 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
 
   // 4. Update T-Shirt Material Color & Fabric Properties
   useEffect(() => {
-    const mesh = tshirtMeshRef.current;
-    if (!mesh || !mesh.material) return;
+    const meshes = garmentMeshesRef.current.length
+      ? garmentMeshesRef.current
+      : tshirtMeshRef.current ? [tshirtMeshRef.current] : [];
+    if (!meshes.length) return;
 
-    const mat = mesh.material as THREE.MeshStandardMaterial;
-    mat.color.set(new THREE.Color(shirtBaseHex(color)));
-    mat.roughness = shirtRoughness(color, fabric);
-    mat.needsUpdate = true;
+    meshes.forEach((mesh) => {
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      materials.forEach((material) => {
+        const mat = material as THREE.MeshStandardMaterial;
+        mat.color.set(new THREE.Color(shirtBaseHex(color)));
+        mat.roughness = shirtRoughness(color, fabric);
+        mat.needsUpdate = true;
+      });
+    });
   }, [color, fabric, isModelLoaded]);
 
   // 5. Artwork projection onto the fabric (shader-based, hugs the surface).
@@ -341,12 +411,12 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   const applyLayers = useCallback(() => {
     const uniforms = printUniformsRef.current;
     if (!uniforms) return;
-    syncLayerUniforms(uniforms, graphicsRef.current, texCacheRef.current, technique);
+    syncLayerUniforms(uniforms, graphicsRef.current, texCacheRef.current, technique, garmentModel);
 
     if (onCanvasRendered && rendererRef.current) {
       onCanvasRendered(rendererRef.current.domElement);
     }
-  }, [technique, onCanvasRendered]);
+  }, [technique, onCanvasRendered, garmentModel]);
 
   const ensureTextures = useCallback(async () => {
     const all = graphicsRef.current;
@@ -473,6 +543,12 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     <div className={`relative flex flex-col items-center justify-center w-full h-full select-none overflow-hidden transition-colors duration-300 ${
       studioBgColor === 'white' ? 'bg-white text-zinc-900' : 'bg-zinc-950 text-white'
     }`}>
+      {/* Pilihan model pakaian */}
+      <div className="absolute left-2 top-2 sm:left-3 z-20 flex items-center gap-1 rounded-xl border border-zinc-500/20 bg-zinc-900/80 p-1 shadow-lg backdrop-blur">
+        <button type="button" onClick={() => onGarmentModelChange('shirt')} className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${garmentModel === 'shirt' ? 'bg-brand text-zinc-950' : 'text-zinc-200 hover:bg-white/10'}`}>Kaos</button>
+        <button type="button" onClick={() => onGarmentModelChange('hoodie')} className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${garmentModel === 'hoodie' ? 'bg-brand text-zinc-950' : 'text-zinc-200 hover:bg-white/10'}`}>Hoodie</button>
+      </div>
+
       {/* Main 3D Canvas Mount */}
       <div
         ref={mountRef}
@@ -486,9 +562,18 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
 
       {/* Loading Overlay */}
       {!isModelLoaded && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/20 backdrop-blur-sm pointer-events-none z-10">
-          <div className="w-9 h-9 border-2 border-brand border-t-transparent rounded-full animate-spin mb-2" />
-          <span className="text-xs font-semibold text-zinc-200">Memuat Model 3D Kaos...</span>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-950/20 backdrop-blur-sm z-10 px-6 text-center">
+          {modelLoadError ? (
+            <>
+              <span className="text-sm font-semibold text-zinc-900 bg-white/90 rounded-xl px-4 py-3 shadow-lg">{modelLoadError}</span>
+              <button type="button" onClick={() => window.location.reload()} className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-zinc-950 shadow">Muat ulang</button>
+            </>
+          ) : (
+            <>
+              <div className="w-9 h-9 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+              <span className="text-xs font-semibold text-zinc-200">Memuat Model 3D{modelLoadProgress !== null ? `... ${modelLoadProgress}%` : "..."}</span>
+            </>
+          )}
         </div>
       )}
 
@@ -556,7 +641,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
         <button
           onClick={() => {
             targetRotationY.current = nearestAngleForSide(currentSide);
-            targetRotationX.current = 0;
+            targetRotationX.current = getPitchForSide(currentSide);
             setCameraDistance(1.35);
           }}
           title="Reset Sudut Pandang"

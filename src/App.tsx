@@ -53,6 +53,7 @@ export default function App() {
 
   // Studio Viewing Mode: 3D Rotatable Model or 2D Studio Photo Mockup
   const [studioMode, setStudioMode] = useState<'3d' | '2d'>('3d');
+  const [garmentModel, setGarmentModel] = useState<'shirt' | 'hoodie'>('shirt');
   
   // Studio Background Theme: Pure White or Deep Studio Black
   const [studioBgColor, setStudioBgColor] = useState<StudioBgColor>('white');
@@ -124,7 +125,12 @@ export default function App() {
       : currentSide === 'sleeve_left' ? 'sleeve_left'
       : currentSide === 'sleeve_right' ? 'sleeve_right'
       : 'chest_center';
-    const preset = PLACEMENT_PRESETS.find((p) => p.id === (presetId ?? fallback)) ?? PLACEMENT_PRESETS[0];
+
+    // Hoodie saja: sisi yang sedang dipilih di toolbar diutamakan dibanding preset depan dari
+    // contoh gambar. Kaos tetap memakai perilaku produksi (presetId ?? fallback).
+    const resolvedPresetId: PlacementPresetId =
+      garmentModel === 'hoodie' && currentSide !== 'front' ? fallback : (presetId ?? fallback);
+    const preset = PLACEMENT_PRESETS.find((p) => p.id === resolvedPresetId) ?? PLACEMENT_PRESETS[0];
     const layer: GraphicSettings = {
       id: createGraphicId(),
       visible: true,
@@ -235,6 +241,9 @@ export default function App() {
             {studioMode === '3d' ? (
               <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-zinc-500 text-sm">Memuat studio 3D…</div>}>
               <ThreeDStudio
+                 key={garmentModel}
+                 garmentModel={garmentModel}
+                 onGarmentModelChange={setGarmentModel}
                 fabric={selectedFabric}
                 color={selectedColor}
                 graphics={graphics}
