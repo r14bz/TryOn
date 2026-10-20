@@ -215,7 +215,9 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     const shadowMat = new THREE.ShadowMaterial({ opacity: studioBgColor === 'white' ? 0.10 : 0.38 });
     const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
     shadowMesh.rotation.x = -Math.PI / 2;
-    shadowMesh.position.y = -0.38;
+    // The hoodie is displayed slightly smaller than the normalized mesh, so
+    // raise its shadow floor to keep it visually aligned with the hem.
+    shadowMesh.position.y = garmentModel === 'hoodie' ? -0.34 : -0.38;
     shadowMesh.receiveShadow = true;
     rootGroup.add(shadowMesh);
 
@@ -245,6 +247,11 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
         garmentMeshesRef.current = garmentModel === 'hoodie' && 'meshes' in prepared
           ? prepared.meshes
           : prepared.mesh ? [prepared.mesh] : [];
+
+        // The imported hoodie has a normalized height of about 0.82 model units
+        // but is still too dominant in the portrait mobile viewport. Scale only the
+        // object root (not its geometry) so local-space print projection stays aligned.
+        if (garmentModel === 'hoodie') model.scale.setScalar(0.82);
 
         rootGroup.add(model);
         setModelLoadProgress(100);
