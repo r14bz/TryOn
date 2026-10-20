@@ -126,12 +126,10 @@ export default function App() {
       : currentSide === 'sleeve_right' ? 'sleeve_right'
       : 'chest_center';
 
-    // When the user has selected a specific garment side in the studio toolbar,
-    // that side must take precedence over a sample artwork's suggested front preset.
-    // Otherwise a sample chosen while viewing the back/sleeve is silently assigned
-    // to the front, which looks like the back print has been projected onto the front.
+    // Hoodie saja: sisi yang sedang dipilih di toolbar diutamakan dibanding preset depan dari
+    // contoh gambar. Kaos tetap memakai perilaku produksi (presetId ?? fallback).
     const resolvedPresetId: PlacementPresetId =
-      currentSide === 'front' ? (presetId ?? fallback) : fallback;
+      garmentModel === 'hoodie' && currentSide !== 'front' ? fallback : (presetId ?? fallback);
     const preset = PLACEMENT_PRESETS.find((p) => p.id === resolvedPresetId) ?? PLACEMENT_PRESETS[0];
     const layer: GraphicSettings = {
       id: createGraphicId(),

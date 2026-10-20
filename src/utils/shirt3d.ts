@@ -5,8 +5,7 @@ import {
   GraphicSettings,
   PrintTechniqueInfo,
   PlacementSide,
-  MAX_GRAPHICS
-} from '../types/sablon';
+  MAX_GRAPHICS, GarmentModel } from '../types/sablon';
 import { getCachedImage, getFilteredSource } from './fabricRenderer';
 import { getModelPlacement } from './placement';
 import { computeAxisVisibility, Vec3 } from './printVisibility';
@@ -34,8 +33,14 @@ const SIDE_AXIS: Record<PlacementSide, Vec3> = {
 
 /** Titik tumpu horizontal (x, z) proyektor tiap sisi; tinggi (y) datang dari placement.ts. */
 const SIDE_ANCHOR_XZ: Record<PlacementSide, [number, number]> = {
-  // Hoodie geometry is centered after transform baking. Keep body prints on the
-  // torso panel's center plane; sleeve anchors sit farther out on each arm panel.
+  front: [0, 0],
+  back: [0, 0],
+  sleeve_left: [0.22, -0.025], // lengan kiri pemakai = +x pada model
+  sleeve_right: [-0.22, -0.025]
+};
+
+/** Titik tumpu khusus hoodie (mesh dipusatkan & dinormalisasi di prepareHoodieModel). */
+const HOODIE_SIDE_ANCHOR_XZ: Record<PlacementSide, [number, number]> = {
   front: [0, 0.012],
   back: [0, -0.012],
   sleeve_left: [0.255, -0.018],
@@ -196,69 +201,65 @@ roughnessFactor = mix(roughnessFactor, printRough, printMask);`
 // ---------------------------------------------------------------------------
 // Visibilitas per-vertex (anti tembus)
 // ---------------------------------------------------------------------------
-const visibilityCache = new WeakMap<THREE.BufferGeometry, Float32Array>();
+let visibilityCache: { count: number; data: Float32Array } | null = null;
 
 /**
- * Compute visibilitas untuk geometri yang tepat, bukan hanya jumlah vertex.
- * Hoodie terdiri dari banyak mesh; cache berdasarkan jumlah vertex membuat
- * geometri yang berbeda memakai mask sisi yang salah sehingga sablon bocor/rusak.
+ * Menambahkan atribut `printVis` (vec4: depan, belakang, lengan kiri, lengan kanan)
+ * ke geometri. Nilai 1 = permukaan itu pertama terkena proyektor sisi tersebut.
+ * Dihitung sekali (~0,1 detik) lalu disimpan, karena model tidak berubah.
  */
 export function attachPrintVisibility(geometry: THREE.BufferGeometry) {
-  const cached = visibilityCache.get(geometry);
-  if (cached) {
-    geometry.setAttribute('printVis', new THREE.BufferAttribute(cached, 4));
-    return;
-  }
-
   const pos = geometry.getAttribute('position');
-  if (!pos) return;
   const count = pos.count;
-  const positions = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) {
-    positions[i * 3] = pos.getX(i);
-    positions[i * 3 + 1] = pos.getY(i);
-    positions[i * 3 + 2] = pos.getZ(i);
+
+  if (!visibilityCache || visibilityCache.count !== count) {
+    const positions = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      positions[i * 3] = pos.getX(i);
+      positions[i * 3 + 1] = pos.getY(i);
+      positions[i * 3 + 2] = pos.getZ(i);
+    }
+    const index = geometry.getIndex();
+    let indices: ArrayLike<number>;
+    if (index) {
+      indices = index.array as ArrayLike<number>;
+    } else {
+      const seq = new Uint32Array(count);
+      for (let i = 0; i < count; i++) seq[i] = i;
+      indices = seq;
+    }
+
+    const data = new Float32Array(count * 4).fill(1);
+    SIDE_ORDER.forEach((side, channel) => {
+      const vis = computeAxisVisibility(positions, indices, SIDE_AXIS[side]);
+      for (let i = 0; i < count; i++) data[i * 4 + channel] = vis[i];
+    });
+    visibilityCache = { count, data };
   }
 
-  const index = geometry.getIndex();
-  let indices: ArrayLike<number>;
-  if (index) {
-    indices = index.array as ArrayLike<number>;
-  } else {
-    const seq = new Uint32Array(count);
-    for (let i = 0; i < count; i++) seq[i] = i;
-    indices = seq;
-  }
-
-  const data = new Float32Array(count * 4).fill(1);
-  SIDE_ORDER.forEach((side, channel) => {
-    const vis = computeAxisVisibility(positions, indices, SIDE_AXIS[side]);
-    for (let i = 0; i < count; i++) data[i * 4 + channel] = vis[i];
-  });
-  visibilityCache.set(geometry, data);
-  geometry.setAttribute('printVis', new THREE.BufferAttribute(data, 4));
+  geometry.setAttribute('printVis', new THREE.BufferAttribute(visibilityCache.data, 4));
 }
 
 // ---------------------------------------------------------------------------
 // Frame proyektor & penempatan
 // ---------------------------------------------------------------------------
 /** Frame proyektor (ruang lokal mesh) untuk tiap sisi. gx/gy: -50..50 (%) dari slider. */
-export function getPrintFrame(side: PlacementSide, gx: number, gy: number) {
-  const place = getModelPlacement(side);
+export function getPrintFrame(side: PlacementSide, gx: number, gy: number, garment: GarmentModel = 'shirt') {
+  const place = getModelPlacement(side, garment);
   const a = SIDE_AXIS[side];
   const axis = new THREE.Vector3(a[0], a[1], a[2]).normalize();
-  const [ox, oz] = SIDE_ANCHOR_XZ[side];
+  const [ox, oz] = (garment === 'hoodie' ? HOODIE_SIDE_ANCHOR_XZ : SIDE_ANCHOR_XZ)[side];
   const origin = new THREE.Vector3(ox, place.baseY, oz);
 
   // Basis mengikuti pemirsa: up mengikuti +Y, right = (arah pandang) x up
   const up = new THREE.Vector3(0, 1, 0).addScaledVector(axis, -axis.y).normalize();
   const right = new THREE.Vector3().crossVectors(axis.clone().negate(), up).normalize();
 
-  // UI position sliders span -50..50. Map the full slider travel to the
-  // available garment range; dividing by 100 left the artwork with only half
-  // of the movement users expected, so it could hit the slider end before centering.
-  origin.addScaledVector(right, (gx / 50) * place.rangeX);
-  origin.addScaledVector(up, -(gy / 50) * place.rangeY);
+  // Kaos: rentang geser slider asli (gx/100, produksi). Hoodie: slider -50..50 dipetakan
+  // ke seluruh rentang pakaian (gx/50) karena panel hoodie lebih lebar dari kaos.
+  const sliderDivisor = garment === 'hoodie' ? 50 : 100;
+  origin.addScaledVector(right, (gx / sliderDivisor) * place.rangeX);
+  origin.addScaledVector(up, -(gy / sliderDivisor) * place.rangeY);
   return { axis, origin, right, up };
 }
 
@@ -272,7 +273,8 @@ export function syncLayerUniforms(
   uniforms: PrintLayerUniforms[],
   graphics: GraphicSettings[],
   textures: Map<string, PrintTextureEntry>,
-  technique: PrintTechniqueInfo
+  technique: PrintTechniqueInfo,
+  garment: GarmentModel = 'shirt'
 ) {
   const visible = graphics.filter((g) => g.visible && g.imageUrl).slice(0, MAX_GRAPHICS);
 
@@ -285,14 +287,14 @@ export function syncLayerUniforms(
     }
     u.uPrintMap.value = entry.tex;
 
-    const frame = getPrintFrame(g.side, g.x, g.y);
+    const frame = getPrintFrame(g.side, g.x, g.y, garment);
     u.uPrintOrigin.value.copy(frame.origin);
     u.uPrintAxis.value.copy(frame.axis);
     u.uPrintRight.value.copy(frame.right);
     u.uPrintUp.value.copy(frame.up);
 
     // Ukuran dari rumus yang sama dengan tampilan 2D (placement.ts)
-    const width = getModelPlacement(g.side).baseWidth * g.scale;
+    const width = getModelPlacement(g.side, garment).baseWidth * g.scale;
     u.uPrintSize.value.set(width, width * entry.aspect);
 
     const channel = SIDE_ORDER.indexOf(g.side);

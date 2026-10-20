@@ -405,12 +405,12 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   const applyLayers = useCallback(() => {
     const uniforms = printUniformsRef.current;
     if (!uniforms) return;
-    syncLayerUniforms(uniforms, graphicsRef.current, texCacheRef.current, technique);
+    syncLayerUniforms(uniforms, graphicsRef.current, texCacheRef.current, technique, garmentModel);
 
     if (onCanvasRendered && rendererRef.current) {
       onCanvasRendered(rendererRef.current.domElement);
     }
-  }, [technique, onCanvasRendered]);
+  }, [technique, onCanvasRendered, garmentModel]);
 
   const ensureTextures = useCallback(async () => {
     const all = graphicsRef.current;

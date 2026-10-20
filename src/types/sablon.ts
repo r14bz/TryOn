@@ -90,3 +90,6 @@ export interface GarmentSize {
   chestWidthCm: number;
   bodyLengthCm: number;
 }
+
+/** Model pakaian yang tersedia di studio. 'shirt' = perilaku produksi asli. */
+export type GarmentModel = 'shirt' | 'hoodie';
