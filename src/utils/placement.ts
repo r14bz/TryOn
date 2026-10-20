@@ -35,12 +35,12 @@ export const PHOTO_LAYOUT = {
 
 /** Proporsi kaos pada model 3D (satuan mentah GLB, diukur dari mesh shirt_baked.glb). */
 export const MODEL_LAYOUT = {
-  /** lebar badan di area dada/perut */
-  torsoWidth: 0.305,
-  /** titik tertinggi kaos (bahu / kerah) */
-  top: 0.261,
-  /** titik terendah kaos (hem) */
-  bottom: -0.352
+  /** Lebar badan hoodie pada mesh yang sudah dinormalisasi (bukan ukuran foto kaos). */
+  torsoWidth: 0.39,
+  /** Titik tertinggi hoodie (termasuk tudung); sablon badan tetap dibatasi oleh panel shader. */
+  top: 0.41,
+  /** Titik terendah hoodie setelah normalisasi ke tinggi 0.82 unit. */
+  bottom: -0.41
 } as const;
 
 export interface ModelPlacement {
