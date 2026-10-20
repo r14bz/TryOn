@@ -34,10 +34,12 @@ const SIDE_AXIS: Record<PlacementSide, Vec3> = {
 
 /** Titik tumpu horizontal (x, z) proyektor tiap sisi; tinggi (y) datang dari placement.ts. */
 const SIDE_ANCHOR_XZ: Record<PlacementSide, [number, number]> = {
-  front: [0, 0],
-  back: [0, 0],
-  sleeve_left: [0.22, -0.025],
-  sleeve_right: [-0.22, -0.025]
+  // Hoodie geometry is centered after transform baking. Keep body prints on the
+  // torso panel's center plane; sleeve anchors sit farther out on each arm panel.
+  front: [0, 0.012],
+  back: [0, -0.012],
+  sleeve_left: [0.255, -0.018],
+  sleeve_right: [-0.255, -0.018]
 };
 
 /** Batas jahitan lengan: sablon lengan tidak boleh melewati lingkar lengan ke badan. */
@@ -130,7 +132,10 @@ uniform float uPrintOn${i};`
   // projections well outside the torso. A narrow transition avoids fuzzy overlaps
   // around the side seams while preserving a small antialiasing-friendly fade.
   float frontRegion = smoothstep(0.008, 0.028, vPrintPos.z);
-  float backRegion = 1.0 - smoothstep(-0.028, -0.008, vPrintPos.z);
+  // The hood is part of the rear silhouette but must not receive torso-back prints.
+  // Clip the upper back panel just below the hood/neck seam.
+  float backTorsoRegion = 1.0 - smoothstep(0.205, 0.235, vPrintPos.y);
+  float backRegion = (1.0 - smoothstep(-0.028, -0.008, vPrintPos.z)) * backTorsoRegion;
   float sleeveLeftRegion = smoothstep(0.225, 0.255, vPrintPos.x);
   float sleeveRightRegion = smoothstep(0.225, 0.255, -vPrintPos.x);
   float hoodieRegion = uPrintSide${i}.x * frontRegion
@@ -508,7 +513,10 @@ export function prepareHoodieModel(
       color: new THREE.Color(shirtBaseHex(color)),
       roughness: shirtRoughness(color, fabric),
       metalness: 0.02,
-      map: source.map || null,
+      // The source GLB albedo is baked nearly black; using it as a color map
+      // multiplies every chosen garment color by black. Keep surface detail maps,
+      // but let the selected fabric color drive the albedo.
+      map: null,
       normalMap: source.normalMap || null,
       roughnessMap: source.roughnessMap || null,
       aoMap: source.aoMap || null,
