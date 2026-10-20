@@ -249,8 +249,11 @@ export function getPrintFrame(side: PlacementSide, gx: number, gy: number) {
   const up = new THREE.Vector3(0, 1, 0).addScaledVector(axis, -axis.y).normalize();
   const right = new THREE.Vector3().crossVectors(axis.clone().negate(), up).normalize();
 
-  origin.addScaledVector(right, (gx / 100) * place.rangeX);
-  origin.addScaledVector(up, -(gy / 100) * place.rangeY);
+  // UI position sliders span -50..50. Map the full slider travel to the
+  // available garment range; dividing by 100 left the artwork with only half
+  // of the movement users expected, so it could hit the slider end before centering.
+  origin.addScaledVector(right, (gx / 50) * place.rangeX);
+  origin.addScaledVector(up, -(gy / 50) * place.rangeY);
   return { axis, origin, right, up };
 }
 
