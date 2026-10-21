@@ -9,15 +9,20 @@ import {
   ChevronDown,
   Plus
 } from 'lucide-react';
-import { GraphicSettings, PlacementPresetId, PlacementSide, MAX_GRAPHICS } from '../types/sablon';
+import { GraphicSettings, PlacementPresetId, PlacementSide, TextSpec, MAX_GRAPHICS } from '../types/sablon';
 import { SAMPLE_ARTWORKS, SampleArtwork } from '../data/sampleArtworks';
 import { prepareUploadedImage } from '../utils/imageUpload';
+import { TextEditor } from './TextEditor';
 
 interface GraphicControlPanelProps {
   graphics: GraphicSettings[];
   activeGraphic: GraphicSettings | null;
   onSelect: (id: string) => void;
   onAddImage: (image: { url: string; name: string }, presetId?: PlacementPresetId) => void;
+  /** menambah layer teks baru (isi awal dibuat oleh App) */
+  onAddText: () => void;
+  /** mengubah teks pada layer aktif */
+  onTextChange: (spec: TextSpec) => void;
   onRemove: (id: string) => void;
   onToggleVisible: (id: string) => void;
   onMove: (id: string, direction: -1 | 1) => void;
@@ -37,6 +42,8 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
   activeGraphic,
   onSelect,
   onAddImage,
+  onAddText,
+  onTextChange,
   onRemove,
   onToggleVisible,
   onMove,
@@ -170,6 +177,9 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
         )}
       </div>
 
+      {/* Editor teks: tampil jika layer aktif adalah teks */}
+      {graphic?.text && <TextEditor spec={graphic.text} onChange={onTextChange} />}
+
       {/* 2. Upload */}
       <div>
         <button
@@ -200,6 +210,15 @@ export const GraphicControlPanel: React.FC<GraphicControlPanelProps> = ({
         {uploadError && (
           <p className="text-[11px] text-red-400 mt-1.5" role="alert">{uploadError}</p>
         )}
+
+        <button
+          onClick={onAddText}
+          disabled={isFull}
+          className="mt-2 w-full h-11 rounded-xl border border-zinc-800 bg-zinc-900/60 hover:border-brand/60 hover:bg-zinc-900 disabled:opacity-50 text-xs font-semibold text-zinc-200 flex items-center justify-center gap-2 touch-manipulation transition-all"
+        >
+          <span className="font-serif text-base font-bold text-brand leading-none">Aa</span>
+          {isFull ? 'Batas gambar tercapai' : 'Tambah Teks'}
+        </button>
       </div>
 
       {/* 3. Sample Artwork Library */}

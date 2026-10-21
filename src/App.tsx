@@ -1,4 +1,4 @@
-import React, { useState, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useCallback, useRef, lazy, Suspense } from 'react';
 import { 
   Image as ImageIcon, 
   Palette, 
@@ -18,6 +18,7 @@ import {
   PlacementPresetId,
   StudioBgColor,
   GarmentModel,
+  TextSpec,
   MAX_GRAPHICS
 } from './types/sablon';
 import { FABRICS, PRINT_TECHNIQUES, GARMENT_SIZES, PLACEMENT_PRESETS } from './data/fabricData';
@@ -34,6 +35,8 @@ import { TextureInspectModal } from './components/TextureInspectModal';
 import { PriceQuoteModal } from './components/PriceQuoteModal';
 import { ExportModal } from './components/ExportModal';
 import { GARMENT_MODELS } from './data/garmentModels';
+import { DEFAULT_TEXT_SPEC } from './data/textFonts';
+import { renderTextToDataUrl, textLayerName } from './utils/textRenderer';
 import { forgetCachedImage } from './utils/fabricRenderer';
 import { isDesktopViewport } from './utils/viewport';
 
@@ -136,7 +139,7 @@ export default function App() {
     if (g) setCurrentSide(g.side);
   };
 
-  const handleAddImage = (image: { url: string; name: string }, presetId?: PlacementPresetId) => {
+  const handleAddImage = (image: { url: string; name: string; text?: TextSpec }, presetId?: PlacementPresetId) => {
     if (graphics.length >= MAX_GRAPHICS) {
       if (image.url.startsWith('blob:')) URL.revokeObjectURL(image.url);
       return;
@@ -165,11 +168,47 @@ export default function App() {
       opacity: 1.0,
       blendMode: 'normal',
       colorFilter: 'original',
-      preset: preset.id
+      preset: preset.id,
+      text: image.text
     };
     setGraphics((prev) => [...prev, layer]);
     setActiveGraphicId(layer.id);
     setCurrentSide(preset.side);
+  };
+
+  // Teks sebagai desain: dirender menjadi gambar PNG transparan lalu diperlakukan seperti gambar biasa.
+  const handleAddText = async () => {
+    if (graphics.length >= MAX_GRAPHICS) return;
+    try {
+      const url = await renderTextToDataUrl(DEFAULT_TEXT_SPEC);
+      handleAddImage({ url, name: textLayerName(DEFAULT_TEXT_SPEC), text: { ...DEFAULT_TEXT_SPEC } });
+    } catch (err) {
+      console.error('[Try-D] Gagal membuat teks:', err);
+    }
+  };
+
+  const textTimerRef = useRef<number | undefined>(undefined);
+  const handleTextChange = (spec: TextSpec) => {
+    const id = activeGraphic?.id;
+    if (!id) return;
+    // Isi editor langsung berubah; gambarnya dirender ulang setelah jeda singkat agar tidak berat
+    setGraphics((prev) => prev.map((g) => (g.id === id ? { ...g, text: spec, imageName: textLayerName(spec) } : g)));
+    window.clearTimeout(textTimerRef.current);
+    if (spec.content.trim() === '') return; // teks kosong: pertahankan gambar terakhir
+    textTimerRef.current = window.setTimeout(async () => {
+      try {
+        const url = await renderTextToDataUrl(spec);
+        setGraphics((prev) =>
+          prev.map((g) => {
+            if (g.id !== id) return g;
+            if (g.imageUrl !== url && g.imageUrl.startsWith('data:')) forgetCachedImage(g.imageUrl);
+            return { ...g, imageUrl: url };
+          })
+        );
+      } catch (err) {
+        console.error('[Try-D] Gagal merender teks:', err);
+      }
+    }, 180);
   };
 
   const handleRemoveGraphic = (id: string) => {
@@ -348,6 +387,8 @@ export default function App() {
                   activeGraphic={activeGraphic}
                   onSelect={handleSelectGraphic}
                   onAddImage={handleAddImage}
+                  onAddText={handleAddText}
+                  onTextChange={handleTextChange}
                   onRemove={handleRemoveGraphic}
                   onToggleVisible={handleToggleGraphic}
                   onMove={handleMoveGraphic}
