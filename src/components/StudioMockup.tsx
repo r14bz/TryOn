@@ -4,7 +4,6 @@ import {
   ZoomIn, 
   ZoomOut
 } from 'lucide-react';
-import { CanvasEditDock } from './CanvasEditDock';
 import { 
   FabricInfo, 
   TshirtColor, 
@@ -212,16 +211,6 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
           </div>
         )}
       </div>
-
-      {/* Dock bawah: daftar Gambar di Kaos + panel Atur Posisi & Ukuran */}
-      <CanvasEditDock
-        graphics={graphics}
-        graphic={graphic}
-        onSelect={onSelectGraphic}
-        onToggleVisible={onToggleGraphicVisible}
-        onRemove={onRemoveGraphic}
-        onGraphicChange={onGraphicChange}
-      />
 
       {/* Floating Right Control Strip (Zoom & Reset) */}
       <div className={`absolute right-2 top-2 sm:right-3 sm:top-1/2 sm:-translate-y-1/2 z-20 flex flex-row sm:flex-col items-center gap-1 sm:gap-1.5 p-1 rounded-xl shadow-xl border backdrop-blur ${

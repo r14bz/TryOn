@@ -1,181 +1,143 @@
-import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, Sliders } from 'lucide-react';
-import { GraphicSettings } from '../types/sablon';
-import { isDesktopViewport } from '../utils/viewport';
+import React from 'react';
+import { GraphicSettings, PlacementPresetId, PlacementSide } from '../types/sablon';
+import { PLACEMENT_PRESETS } from '../data/fabricData';
 
 interface PlacementPanelProps {
-  graphic: GraphicSettings;
+  graphics: GraphicSettings[];
+  /** gambar yang sedang diatur */
+  graphic: GraphicSettings | null;
+  onSelect: (id: string) => void;
   onGraphicChange: (updated: Partial<GraphicSettings>) => void;
-  /** daftar gambar, ditampilkan di atas slider Kiri/Kanan */
-  layers?: React.ReactNode;
 }
 
-// Pilihan terakhir pengguna (bertahan saat pindah 3D <-> 2D); null = belum pernah diubah
-let lastExpanded: boolean | null = null;
+const SIDE_SHORT: Record<PlacementSide, string> = {
+  front: 'Depan',
+  back: 'Belakang',
+  sleeve_left: 'Lengan Kiri',
+  sleeve_right: 'Lengan Kanan'
+};
 
 const stepBtn =
-  'w-7 h-7 shrink-0 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 flex items-center justify-center text-[11px] font-bold text-brand touch-manipulation';
+  'w-8 h-8 shrink-0 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 flex items-center justify-center text-[11px] font-bold text-brand touch-manipulation';
 const rangeCls = 'flex-1 min-w-0 accent-brand h-1.5 bg-zinc-800 rounded-lg cursor-pointer';
-const labelCls = 'w-[64px] shrink-0 text-zinc-400 font-medium whitespace-nowrap';
-const valueCls = 'w-9 shrink-0 font-mono text-[10px] text-right text-zinc-300';
+
+interface SliderRowProps {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  /** besar langkah tombol -/+ */
+  nudge: number;
+  display: string;
+  minus: string;
+  plus: string;
+  onChange: (v: number) => void;
+}
+
+const SliderRow: React.FC<SliderRowProps> = ({ label, value, min, max, step, nudge, display, minus, plus, onChange }) => (
+  <div className="flex items-center gap-1.5">
+    <span className="w-[68px] shrink-0 text-zinc-400 font-medium whitespace-nowrap">{label}</span>
+    <button className={stepBtn} onClick={() => onChange(Math.max(min, +(value - nudge).toFixed(2)))}>
+      {minus}
+    </button>
+    <input
+      type="range"
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      onChange={(e) => onChange(Number(e.target.value))}
+      className={rangeCls}
+    />
+    <button className={stepBtn} onClick={() => onChange(Math.min(max, +(value + nudge).toFixed(2)))}>
+      {plus}
+    </button>
+    <span className="w-11 shrink-0 font-mono text-[10px] text-right text-zinc-300">{display}</span>
+  </div>
+);
 
 /**
- * Panel kontrol posisi/ukuran sablon. Lebarnya mengikuti layar (rata kiri-kanan),
- * barisnya rapat, dan labelnya tidak turun baris di layar HP.
+ * Kontrol posisi/ukuran sablon (tab "Posisi" di panel bawah). Memilih gambar yang diatur lewat
+ * deretan thumbnail, lalu slider Kiri/Kanan, Atas/Bawah, Ukuran, dan Putar.
  */
-export const PlacementPanel: React.FC<PlacementPanelProps> = ({ graphic, onGraphicChange, layers }) => {
-  // Awalnya tertutup di tampilan mobile agar kaos tidak tertutup panel
-  const [expanded, setExpandedState] = useState<boolean>(() => lastExpanded ?? isDesktopViewport());
-  const setExpanded = (value: boolean) => {
-    lastExpanded = value;
-    setExpandedState(value);
+export const PlacementPanel: React.FC<PlacementPanelProps> = ({ graphics, graphic, onSelect, onGraphicChange }) => {
+  if (!graphic) {
+    return (
+      <div className="text-[11px] text-zinc-500 bg-zinc-900/60 border border-zinc-800 rounded-xl p-3 text-center">
+        Belum ada gambar. Tambahkan dari tab Desain.
+      </div>
+    );
+  }
+
+  const set = (u: Partial<GraphicSettings>) => onGraphicChange({ ...u, preset: 'custom' });
+  const applyPreset = (id: PlacementPresetId) => {
+    const p = PLACEMENT_PRESETS.find((x) => x.id === id);
+    if (!p) return;
+    onGraphicChange({ preset: id, side: p.side, scale: p.defaultScale, x: p.defaultX, y: p.defaultY, rotation: 0 });
   };
+  const rotation = graphic.rotation > 180 ? graphic.rotation - 360 : graphic.rotation;
 
   return (
-    <div className="w-full max-w-md mx-auto bg-zinc-950/95 border border-zinc-800 text-zinc-200 px-2.5 py-2 rounded-2xl shadow-2xl backdrop-blur-md pointer-events-auto">
-      <button
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        title={expanded ? 'Kecilkan Kontrol' : 'Buka Kontrol'}
-        className="w-full flex items-center justify-between text-xs touch-manipulation"
-      >
-        <span className="flex items-center gap-1.5 font-bold text-brand">
-          <Sliders className="w-3.5 h-3.5 shrink-0" />
-          <span className="truncate">Atur Posisi &amp; Ukuran Sablon</span>
-        </span>
-        {expanded ? (
-          <ChevronDown className="w-4 h-4 text-zinc-400 shrink-0" />
-        ) : (
-          <ChevronUp className="w-4 h-4 text-zinc-400 shrink-0" />
-        )}
-      </button>
+    <div className="flex flex-col gap-2 text-[11px] text-zinc-200">
+      {/* Pilih gambar yang diatur */}
+      <ul className="flex gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
+        {graphics.map((g) => {
+          const active = g.id === graphic.id;
+          return (
+            <li
+              key={g.id}
+              onClick={() => onSelect(g.id)}
+              className={`shrink-0 flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-xl border cursor-pointer touch-manipulation transition-colors ${
+                active ? 'border-brand/70 bg-brand/10' : 'border-zinc-800 bg-zinc-900/70'
+              }`}
+            >
+              <div className="w-9 h-9 shrink-0 rounded-lg bg-zinc-800 p-0.5 flex items-center justify-center">
+                <img src={g.imageUrl} alt="" className={`max-w-full max-h-full object-contain ${g.visible ? '' : 'opacity-30'}`} />
+              </div>
+              <span className={`text-[10px] font-mono whitespace-nowrap ${active ? 'text-brand' : 'text-zinc-400'}`}>
+                {SIDE_SHORT[g.side]}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
 
-      {expanded && (
-        <div className="flex flex-col gap-1.5 pt-2 mt-1.5 border-t border-zinc-800 text-[11px]">
-          {layers}
+      {/* Ukuran standar */}
+      <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
+        {PLACEMENT_PRESETS.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => applyPreset(p.id)}
+            className={`shrink-0 h-7 px-2.5 rounded-lg border text-[10px] font-medium whitespace-nowrap touch-manipulation ${
+              graphic.preset === p.id
+                ? 'border-brand/60 bg-zinc-800 text-brand'
+                : 'border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            {p.name.split(' (')[0]}
+          </button>
+        ))}
+      </div>
 
-          {/* Kiri / Kanan */}
-          <div className="flex items-center gap-1.5">
-            <span className={labelCls}>Kiri/Kanan</span>
-            <button
-              className={stepBtn}
-              onClick={() => onGraphicChange({ x: Math.max(-50, graphic.x - 2), preset: 'custom' })}
-            >
-              ◀
-            </button>
-            <input
-              type="range"
-              min="-50"
-              max="50"
-              value={Math.round(graphic.x)}
-              onChange={(e) => onGraphicChange({ x: Number(e.target.value), preset: 'custom' })}
-              className={rangeCls}
-            />
-            <button
-              className={stepBtn}
-              onClick={() => onGraphicChange({ x: Math.min(50, graphic.x + 2), preset: 'custom' })}
-            >
-              ▶
-            </button>
-            <span className={valueCls}>{Math.round(graphic.x)}%</span>
-          </div>
+      <SliderRow label="Kiri/Kanan" value={Math.round(graphic.x)} min={-50} max={50} step={1} nudge={2}
+        display={`${Math.round(graphic.x)}%`} minus="◀" plus="▶" onChange={(v) => set({ x: v })} />
+      <SliderRow label="Atas/Bawah" value={Math.round(graphic.y)} min={-50} max={50} step={1} nudge={2}
+        display={`${Math.round(graphic.y)}%`} minus="▲" plus="▼" onChange={(v) => set({ y: v })} />
+      <SliderRow label="Ukuran" value={graphic.scale} min={0.35} max={2} step={0.05} nudge={0.1}
+        display={`${graphic.scale.toFixed(2)}×`} minus="−" plus="+" onChange={(v) => set({ scale: v })} />
+      <SliderRow label="Putar" value={Math.round(rotation)} min={-180} max={180} step={1} nudge={5}
+        display={`${Math.round(rotation)}°`} minus="−" plus="+" onChange={(v) => set({ rotation: v })} />
 
-          {/* Atas / Bawah */}
-          <div className="flex items-center gap-1.5">
-            <span className={labelCls}>Atas/Bawah</span>
-            <button
-              className={stepBtn}
-              onClick={() => onGraphicChange({ y: Math.max(-50, graphic.y - 2), preset: 'custom' })}
-            >
-              ▲
-            </button>
-            <input
-              type="range"
-              min="-50"
-              max="50"
-              value={Math.round(graphic.y)}
-              onChange={(e) => onGraphicChange({ y: Number(e.target.value), preset: 'custom' })}
-              className={rangeCls}
-            />
-            <button
-              className={stepBtn}
-              onClick={() => onGraphicChange({ y: Math.min(50, graphic.y + 2), preset: 'custom' })}
-            >
-              ▼
-            </button>
-            <span className={valueCls}>{Math.round(graphic.y)}%</span>
-          </div>
-
-          {/* Ukuran */}
-          <div className="flex items-center gap-1.5">
-            <span className={labelCls}>Ukuran</span>
-            <button
-              className={stepBtn}
-              onClick={() =>
-                onGraphicChange({ scale: Math.max(0.35, Number((graphic.scale - 0.1).toFixed(2))), preset: 'custom' })
-              }
-            >
-              −
-            </button>
-            <input
-              type="range"
-              min="0.35"
-              max="2.0"
-              step="0.05"
-              value={graphic.scale}
-              onChange={(e) => onGraphicChange({ scale: Number(e.target.value), preset: 'custom' })}
-              className={rangeCls}
-            />
-            <button
-              className={stepBtn}
-              onClick={() =>
-                onGraphicChange({ scale: Math.min(2.0, Number((graphic.scale + 0.1).toFixed(2))), preset: 'custom' })
-              }
-            >
-              +
-            </button>
-            <span className={valueCls}>{graphic.scale.toFixed(2)}×</span>
-          </div>
-
-          {/* Putar */}
-          <div className="flex items-center gap-1.5">
-            <span className={labelCls}>Putar</span>
-            <button
-              className={stepBtn}
-              onClick={() => onGraphicChange({ rotation: Math.max(-180, graphic.rotation - 5), preset: 'custom' })}
-            >
-              −
-            </button>
-            <input
-              type="range"
-              min="-180"
-              max="180"
-              step="1"
-              value={Math.max(-180, Math.min(180, graphic.rotation > 180 ? graphic.rotation - 360 : graphic.rotation))}
-              onChange={(e) => onGraphicChange({ rotation: Number(e.target.value), preset: 'custom' })}
-              className={rangeCls}
-            />
-            <button
-              className={stepBtn}
-              onClick={() => onGraphicChange({ rotation: Math.min(180, graphic.rotation + 5), preset: 'custom' })}
-            >
-              +
-            </button>
-            <span className={valueCls}>{Math.round(graphic.rotation)}°</span>
-          </div>
-
-          {/* Tengah */}
-          <div className="flex items-center justify-end gap-1.5 pt-1.5 border-t border-zinc-800/70">
-            <button
-              onClick={() => onGraphicChange({ x: 0, y: 0, rotation: 0, preset: 'custom' })}
-              className="px-2.5 h-7 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-[10px] text-zinc-400 hover:text-white touch-manipulation"
-              title="Reset Posisi & Putaran ke Tengah"
-            >
-              Tengah
-            </button>
-          </div>
-        </div>
-      )}
+      <div className="flex justify-end pt-1 border-t border-zinc-800/70">
+        <button
+          onClick={() => set({ x: 0, y: 0, rotation: 0 })}
+          title="Kembalikan posisi dan putaran ke tengah"
+          className="px-3 h-8 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-[10px] text-zinc-400 hover:text-white touch-manipulation"
+        >
+          Tengah
+        </button>
+      </div>
     </div>
   );
 };

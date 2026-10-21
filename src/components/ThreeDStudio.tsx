@@ -19,7 +19,6 @@ import {
   StudioBgColor,
   MAX_GRAPHICS
 } from '../types/sablon';
-import { CanvasEditDock } from './CanvasEditDock';
 import {
   HOODIE_SLEEVE_VIEW,
   PrintLayerUniforms,
@@ -34,7 +33,6 @@ import {
 
 interface ThreeDStudioProps {
   garmentModel: 'shirt' | 'hoodie';
-  onGarmentModelChange: (model: 'shirt' | 'hoodie') => void;
   fabric: FabricInfo;
   color: TshirtColor;
   graphics: GraphicSettings[];
@@ -46,8 +44,6 @@ interface ThreeDStudioProps {
   onSideChange: (side: PlacementSide) => void;
   onGraphicChange: (updated: Partial<GraphicSettings>) => void;
   onSelectGraphic?: (id: string) => void;
-  onToggleGraphicVisible?: (id: string) => void;
-  onRemoveGraphic?: (id: string) => void;
   onStudioBgChange: (bg: StudioBgColor) => void;
   onCanvasRendered?: (canvas: HTMLCanvasElement) => void;
   onOpenInspect: () => void;
@@ -57,7 +53,6 @@ interface ThreeDStudioProps {
 
 export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   garmentModel,
-  onGarmentModelChange,
   fabric,
   color,
   graphics,
@@ -69,8 +64,6 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
   onSideChange,
   onGraphicChange,
   onSelectGraphic,
-  onToggleGraphicVisible,
-  onRemoveGraphic,
   onStudioBgChange,
   onCanvasRendered,
   onOpenInspect,
@@ -113,6 +106,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
 
   // Interactive Mode: 'rotate' (spin 360) vs 'graphic' (drag graphic)
   const [interactMode, setInteractMode] = useState<'rotate' | 'graphic'>('rotate');
+  const [moveNotice, setMoveNotice] = useState<string | null>(null);
   const [isModelLoaded, setIsModelLoaded] = useState(false);
   const [modelLoadError, setModelLoadError] = useState<string | null>(null);
   const [modelLoadProgress, setModelLoadProgress] = useState<number | null>(null);
@@ -143,8 +137,76 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     return base + turns * Math.PI * 2;
   };
 
-  // Sync rotation with currentSide prop
+  // Sisi yang sedang menghadap kamera, dari sudut putar model. Dipakai agar navigasi sisi
+  // (Depan / Lengan / Belakang) ikut bergeser saat model diputar manual atau otomatis.
+  // Hoodie: tampilan lengan adalah pandangan depan-serong, jadi sektor "depan"-nya lebih sempit.
+  const sideFromRotation = (rotY: number): PlacementSide => {
+    const t = Math.atan2(Math.sin(rotY), Math.cos(rotY)); // -PI..PI
+    const a = Math.abs(t);
+    const frontHalf = isHoodie ? 0.3 : Math.PI / 4;
+    if (a <= frontHalf) return 'front';
+    if (a >= (Math.PI * 3) / 4) return 'back';
+    return t < 0 ? 'sleeve_left' : 'sleeve_right';
+  };
+  const currentSideRef = useRef<PlacementSide>(currentSide);
+  const onSideChangeRef = useRef(onSideChange);
+  onSideChangeRef.current = onSideChange;
+  /** sisi yang baru saja ditetapkan oleh putaran (bukan oleh klik navigasi): jangan di-snap balik */
+  const detectedSideRef = useRef<PlacementSide | null>(null);
+  const detectSide = (rotY: number) => {
+    const side = sideFromRotation(rotY);
+    if (side === currentSideRef.current) return;
+    detectedSideRef.current = side;
+    currentSideRef.current = side;
+    onSideChangeRef.current(side);
+  };
+  const detectSideRef = useRef(detectSide);
+  detectSideRef.current = detectSide;
+
+  // Gambar yang bisa digeser pada sisi yang sedang tampil: yang aktif jika ada di sisi itu,
+  // jika tidak gambar teratas di sisi tersebut.
+  const pickGraphicForSide = (side: PlacementSide): GraphicSettings | null => {
+    const onSide = graphics.filter((g) => g.visible && g.imageUrl && g.side === side);
+    if (onSide.length === 0) return null;
+    if (graphic && onSide.some((g) => g.id === graphic.id)) return graphic;
+    return onSide[onSide.length - 1];
+  };
+  const flashNotice = (text: string) => {
+    setMoveNotice(text);
+    window.setTimeout(() => setMoveNotice(null), 2200);
+  };
+  const toggleMoveMode = () => {
+    if (interactMode === 'graphic') {
+      setInteractMode('rotate');
+      return;
+    }
+    const target = pickGraphicForSide(currentSide);
+    if (!target) {
+      flashNotice('Tidak ada gambar di sisi ini');
+      return;
+    }
+    if (target.id !== graphic?.id) onSelectGraphic?.(target.id);
+    setInteractMode('graphic');
+  };
+  // Saat mode geser aktif dan sisi berganti (navigasi atau putaran): ikuti gambar di sisi baru
   useEffect(() => {
+    if (interactMode !== 'graphic') return;
+    const target = pickGraphicForSide(currentSide);
+    if (!target) {
+      setInteractMode('rotate');
+      flashNotice('Tidak ada gambar di sisi ini');
+    } else if (target.id !== graphic?.id) {
+      onSelectGraphic?.(target.id);
+    }
+  }, [currentSide]);
+
+  // Sync rotation with currentSide prop (hanya jika perubahan datang dari klik, bukan dari putaran)
+  useEffect(() => {
+    currentSideRef.current = currentSide;
+    if (detectedSideRef.current === currentSide) {
+      detectedSideRef.current = null;
+      return;
+    }
     targetRotationY.current = nearestAngleForSide(currentSide);
     targetRotationX.current = getPitchForSide(currentSide);
   }, [currentSide]);
@@ -295,6 +357,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
         currentRotationY.current += 0.008;
         // keep the target in step so stopping doesn't rewind all the turns
         targetRotationY.current = currentRotationY.current;
+        detectSideRef.current(currentRotationY.current);
       } else {
         currentRotationY.current += (targetRotationY.current - currentRotationY.current) * 0.12;
       }
@@ -520,6 +583,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     if (interactMode === 'rotate') {
       targetRotationY.current += dx * 0.012;
       targetRotationX.current = Math.max(-0.45, Math.min(0.45, targetRotationX.current + dy * 0.007));
+      detectSide(targetRotationY.current);
     } else if (graphic) {
       const sens = 0.28;
       const newX = Math.max(-50, Math.min(50, graphic.x + dx * sens));
@@ -543,12 +607,6 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
     <div className={`relative flex flex-col items-center justify-center w-full h-full select-none overflow-hidden transition-colors duration-300 ${
       studioBgColor === 'white' ? 'bg-white text-zinc-900' : 'bg-zinc-950 text-white'
     }`}>
-      {/* Pilihan model pakaian */}
-      <div className="absolute left-2 top-2 sm:left-3 z-20 flex items-center gap-1 rounded-xl border border-zinc-500/20 bg-zinc-900/80 p-1 shadow-lg backdrop-blur">
-        <button type="button" onClick={() => onGarmentModelChange('shirt')} className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${garmentModel === 'shirt' ? 'bg-brand text-zinc-950' : 'text-zinc-200 hover:bg-white/10'}`}>Kaos</button>
-        <button type="button" onClick={() => onGarmentModelChange('hoodie')} className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${garmentModel === 'hoodie' ? 'bg-brand text-zinc-950' : 'text-zinc-200 hover:bg-white/10'}`}>Hoodie</button>
-      </div>
-
       {/* Main 3D Canvas Mount */}
       <div
         ref={mountRef}
@@ -577,6 +635,12 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
         </div>
       )}
 
+      {moveNotice && (
+        <div className="absolute left-1/2 -translate-x-1/2 top-14 z-30 px-3 h-8 rounded-xl bg-zinc-900/90 text-zinc-100 text-[11px] font-semibold flex items-center shadow-lg pointer-events-none whitespace-nowrap">
+          {moveNotice}
+        </div>
+      )}
+
       {/* Petunjuk saat mode geser sablon aktif */}
       {interactMode === 'graphic' && (
         <div className="absolute left-2 top-2 z-20 h-9 px-2.5 rounded-xl bg-brand text-zinc-950 text-[11px] font-bold flex items-center gap-1.5 shadow-lg pointer-events-none">
@@ -584,16 +648,6 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
           <span className="whitespace-nowrap">Geser sablon</span>
         </div>
       )}
-
-      {/* Dock bawah: daftar Gambar di Kaos + panel Atur Posisi & Ukuran */}
-      <CanvasEditDock
-        graphics={graphics}
-        graphic={graphic}
-        onSelect={onSelectGraphic}
-        onToggleVisible={onToggleGraphicVisible}
-        onRemove={onRemoveGraphic}
-        onGraphicChange={onGraphicChange}
-      />
 
       {/* Floating Right Tool Strip: Zoom In/Out, Turntable, Reset */}
       <div className={`absolute right-2 top-2 sm:right-3 sm:top-1/2 sm:-translate-y-1/2 z-20 flex flex-row sm:flex-col items-center gap-1 sm:gap-1.5 p-1 rounded-xl shadow-xl border backdrop-blur ${
@@ -628,7 +682,7 @@ export const ThreeDStudio: React.FC<ThreeDStudioProps> = ({
         </button>
 
         <button
-          onClick={() => setInteractMode(interactMode === 'graphic' ? 'rotate' : 'graphic')}
+          onClick={toggleMoveMode}
           title={interactMode === 'graphic' ? 'Mode geser sablon aktif (ketuk untuk kembali memutar kaos)' : 'Geser sablon dengan jari'}
           aria-pressed={interactMode === 'graphic'}
           className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors touch-manipulation ${

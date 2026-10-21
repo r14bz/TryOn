@@ -90,7 +90,7 @@ const HOODIE_SLEEVE = {
 } as const;
 
 /** Sudut kamera (rad) saat melihat lengan hoodie dari samping-depan-atas agar lengan terlihat utuh. */
-export const HOODIE_SLEEVE_VIEW = { pitch: 0.443, yaw: 0.254 } as const;
+export const HOODIE_SLEEVE_VIEW = { pitch: 0.443, yaw: 0.55 } as const;
 
 /** Batas jahitan lengan: sablon lengan tidak boleh melewati lingkar lengan ke badan. */
 const SEAM_START = 0.165;
