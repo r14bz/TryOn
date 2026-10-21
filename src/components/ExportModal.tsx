@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Download, Loader2 } from 'lucide-react';
-import { FabricInfo, TshirtColor, GraphicSettings, PrintTechniqueInfo, PlacementSide } from '../types/sablon';
+import { FabricInfo, TshirtColor, GraphicSettings, PrintTechniqueInfo, PlacementSide, GarmentModel } from '../types/sablon';
+import { GARMENT_MODELS } from '../data/garmentModels';
 import {
   BASE_SIZE,
   ExportBackground,
@@ -13,6 +14,8 @@ import {
 import { ShirtSide, graphicShownOnView } from '../utils/fabricRenderer';
 
 interface ExportModalProps {
+  /** model pakaian yang sedang dipakai di studio */
+  garmentModel: GarmentModel;
   fabric: FabricInfo;
   color: TshirtColor;
   technique: PrintTechniqueInfo;
@@ -104,6 +107,7 @@ function Segmented<T extends string | number>({
 }
 
 export const ExportModal: React.FC<ExportModalProps> = ({
+  garmentModel,
   fabric,
   color,
   technique,
@@ -123,6 +127,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
 
   const is3D = mode === '3d';
+  const garmentLabel = GARMENT_MODELS.find((m) => m.id === garmentModel)?.label ?? 'Kaos';
+  // Nama file: kaos tetap seperti semula; model lain diberi awalan agar tidak tertukar
+  const filePrefix = garmentModel === 'shirt' ? 'sablon' : `sablon-${garmentModel}`;
   const views = viewsFor(viewChoice);
   const size = BASE_SIZE * scale;
 
@@ -149,7 +156,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         await new Promise((r) => setTimeout(r, 30));
         const { createShirt3DExporter } = await import('../utils/export3d');
         const exporter = await createShirt3DExporter(
-          { fabric, color, technique, graphics },
+          { fabric, color, technique, graphics, garment: garmentModel },
           size,
           hasTransparentConflict ? 'white' : background
         );
@@ -159,7 +166,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             await new Promise((r) => setTimeout(r, 30));
             const canvas = exporter.renderView(view);
             const blob = await canvasToBlob(canvas, format);
-            const name = `sablon-3d-${color.id}-${SIDE_FILE_LABEL[view]}-${exporter.size}px.${format === 'png' ? 'png' : 'jpg'}`;
+            const name = `${filePrefix}-3d-${color.id}-${SIDE_FILE_LABEL[view]}-${exporter.size}px.${format === 'png' ? 'png' : 'jpg'}`;
             downloadBlob(blob, name);
             saved.push(name);
             canvas.width = 0;
@@ -180,10 +187,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           const canvas = await renderExportCanvas(
             view,
             { mode, views: views as ShirtSide[], scale, background, format },
-            { fabric, color, technique, graphics }
+            { fabric, color, technique, graphics, garment: garmentModel }
           );
           const blob = await canvasToBlob(canvas, format);
-          const name = `sablon-${mode === 'design' ? 'desain' : color.id}-${SIDE_FILE_LABEL[view]}-${size}px.${format === 'png' ? 'png' : 'jpg'}`;
+          const name = `${filePrefix}-${mode === 'design' ? 'desain' : color.id}-${SIDE_FILE_LABEL[view]}-${size}px.${format === 'png' ? 'png' : 'jpg'}`;
           downloadBlob(blob, name);
           saved.push(name);
           // release the big bitmap right away
@@ -248,14 +255,14 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               {mode === '3d'
                 ? 'Persis tampilan model 3D (cahaya, lipatan, dan posisi sablon seperti di studio 3D).'
                 : mode === 'mockup'
-                  ? 'Kaos foto 2D lengkap dengan sablon mengikuti lipatan kain.'
-                  : 'Hanya gambar sablon pada posisi di kaos, tanpa kaosnya (cocok untuk file cetak).'}
+                  ? `${garmentLabel} foto 2D lengkap dengan sablon mengikuti lipatan kain.`
+                  : `Hanya gambar sablon pada posisi di ${garmentLabel.toLowerCase()}, tanpa ${garmentLabel.toLowerCase()}nya (cocok untuk file cetak).`}
             </p>
           </div>
 
           <div>
             <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 block mb-1.5">
-              Sisi kaos
+              Sisi {garmentLabel.toLowerCase()}
             </label>
             <Segmented<ViewChoice>
               value={viewChoice}
@@ -264,7 +271,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             />
             <p className="text-[10px] text-zinc-500 mt-1">
               {is3D
-                ? 'Kiri / Kanan = tampak lengan kaos. "Semua" menyimpan 4 file.'
+                ? `Kiri / Kanan = tampak lengan ${garmentLabel.toLowerCase()}. "Semua" menyimpan 4 file.`
                 : 'Gambar lengan ikut tampil pada sisi depan.'}
             </p>
           </div>

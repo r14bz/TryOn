@@ -13,5 +13,5 @@ export interface GarmentModelInfo {
  */
 export const GARMENT_MODELS: GarmentModelInfo[] = [
   { id: 'shirt', label: 'Kaos', has2D: true },
-  { id: 'hoodie', label: 'Hoodie', has2D: false }
+  { id: 'hoodie', label: 'Hoodie', has2D: true }
 ];

@@ -11,7 +11,8 @@ import {
   PrintTechniqueInfo, 
   GarmentSize,
   PlacementSide,
-  StudioBgColor
+  StudioBgColor,
+  GarmentModel
 } from '../types/sablon';
 import { 
   PrintLayer,
@@ -22,8 +23,11 @@ import {
   renderRealisticTshirt,
   prepareShirtAssets
 } from '../utils/fabricRenderer';
+import { solveHoodieDrag } from '../utils/hoodie2d';
 
 interface StudioMockupProps {
+  /** model pakaian; kosong = kaos */
+  garmentModel?: GarmentModel;
   fabric: FabricInfo;
   color: TshirtColor;
   graphics: GraphicSettings[];
@@ -44,6 +48,7 @@ interface StudioMockupProps {
 }
 
 export const StudioMockup: React.FC<StudioMockupProps> = ({
+  garmentModel = 'shirt' as GarmentModel,
   fabric,
   color,
   graphics,
@@ -82,6 +87,7 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
 
   const renderIdRef = useRef(0);
   const dragRangeRef = useRef(BODY_DRAG_RANGE);
+  const dragTargetRef = useRef<GraphicSettings | null>(null);
 
   const drawMockup = useCallback(async () => {
     const renderId = ++renderIdRef.current;
@@ -97,7 +103,7 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
 
       const side = currentSide === 'back' ? 'back' : 'front';
       // Photo + its own silhouette mask + cloth-fold maps (black uses the black photo)
-      const assets = await prepareShirtAssets(side, color.id === 'black', width, height);
+      const assets = await prepareShirtAssets(side, color.id === 'black', width, height, garmentModel);
 
       const layers = await loadPrintLayers(graphics, side);
 
@@ -127,7 +133,7 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
       console.error('Mockup render error:', err);
       setIsLoading(false);
     }
-  }, [fabric, color, graphics, technique, currentSide, studioBgColor, onCanvasRendered]);
+  }, [garmentModel, fabric, color, graphics, technique, currentSide, studioBgColor, onCanvasRendered]);
 
   useEffect(() => {
     drawMockup();
@@ -141,7 +147,7 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
     const rect = canvas.getBoundingClientRect();
     const cx = ((e.clientX - rect.left) / rect.width) * canvas.width;
     const cy = ((e.clientY - rect.top) / rect.height) * canvas.height;
-    const hitId = hitTestLayer(cx, cy, canvas.width, canvas.height, layersRef.current);
+    const hitId = hitTestLayer(cx, cy, canvas.width, canvas.height, layersRef.current, garmentModel);
     const target = hitId ? graphics.find((g) => g.id === hitId) ?? null : graphic;
     if (hitId && hitId !== graphic?.id) onSelectGraphic(hitId);
     if (!target) return;
@@ -154,6 +160,7 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
       startX: target.x,
       startY: target.y
     };
+    dragTargetRef.current = target;
     dragRangeRef.current =
       target.side === 'sleeve_left' || target.side === 'sleeve_right' ? SLEEVE_DRAG_RANGE : BODY_DRAG_RANGE;
   };
@@ -162,6 +169,23 @@ export const StudioMockup: React.FC<StudioMockupProps> = ({
     const canvas = canvasRef.current;
     if (!canvas || !isDragging) return;
     const rect = canvas.getBoundingClientRect();
+
+    if (garmentModel === 'hoodie' && dragTargetRef.current) {
+      // Hoodie: seretan dikonversi lewat penempatan 2D hoodie (badan dan lengan yang melengkung)
+      const t = dragTargetRef.current;
+      const layer = layersRef.current.find((l) => l.graphic.id === t.id);
+      const aspect = layer ? layer.img.height / (layer.img.width || 1) : 1;
+      const dxPx = ((e.clientX - dragStartRef.current.mouseX) / rect.width) * canvas.width;
+      const dyPx = ((e.clientY - dragStartRef.current.mouseY) / rect.height) * canvas.height;
+      const startG = { ...t, x: dragStartRef.current.startX, y: dragStartRef.current.startY };
+      const d = solveHoodieDrag(canvas.width, canvas.height, aspect, startG, dxPx, dyPx);
+      onGraphicChange({
+        x: Math.max(-50, Math.min(50, startG.x + d.dx)),
+        y: Math.max(-50, Math.min(50, startG.y + d.dy)),
+        preset: 'custom'
+      });
+      return;
+    }
 
     // Pointer travel as a fraction of the canvas, converted to the slider unit
     // (placement moves by `range` of the canvas width per 100 units), so the

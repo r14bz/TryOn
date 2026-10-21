@@ -318,6 +318,7 @@ export default function App() {
               </Suspense>
             ) : has2D ? (
               <StudioMockup
+                garmentModel={garmentModel}
                 fabric={selectedFabric}
                 color={selectedColor}
                 graphics={graphics}
@@ -483,6 +484,7 @@ export default function App() {
 
       {isExportOpen && (
         <ExportModal
+          garmentModel={garmentModel}
           fabric={selectedFabric}
           color={selectedColor}
           technique={selectedTechnique}

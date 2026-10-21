@@ -1,4 +1,4 @@
-import { FabricInfo, TshirtColor, GraphicSettings, PrintTechniqueInfo } from '../types/sablon';
+import { FabricInfo, TshirtColor, GraphicSettings, PrintTechniqueInfo, GarmentModel } from '../types/sablon';
 import {
   ShirtSide,
   loadPrintLayers,
@@ -27,6 +27,8 @@ export interface ExportContext {
   color: TshirtColor;
   technique: PrintTechniqueInfo;
   graphics: GraphicSettings[];
+  /** model pakaian; kosong = kaos */
+  garment?: GarmentModel;
 }
 
 /** Renders one view at high resolution and returns the canvas. */
@@ -52,7 +54,7 @@ export async function renderExportCanvas(
     opts.format === 'jpeg' && opts.background === 'transparent' ? 'white' : opts.background;
 
   if (opts.mode === 'mockup') {
-    const assets = await prepareShirtAssets(view, data.color.id === 'black', BASE_SIZE, BASE_SIZE);
+    const assets = await prepareShirtAssets(view, data.color.id === 'black', BASE_SIZE, BASE_SIZE, data.garment ?? 'shirt');
     renderRealisticTshirt(
       ctx,
       BASE_SIZE,
@@ -75,7 +77,7 @@ export async function renderExportCanvas(
       ctx.fillRect(0, 0, size, size);
     }
     for (const l of layers) {
-      renderPrintGraphic(ctx, size, size, l.img, l.graphic, data.technique, data.fabric, data.color, opts.scale);
+      renderPrintGraphic(ctx, size, size, l.img, l.graphic, data.technique, data.fabric, data.color, opts.scale, data.garment ?? 'shirt');
     }
   }
   return canvas;
