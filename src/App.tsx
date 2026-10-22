@@ -155,7 +155,7 @@ export default function App() {
     // Hoodie saja: sisi yang sedang dipilih di toolbar diutamakan dibanding preset depan dari
     // contoh gambar. Kaos tetap memakai perilaku produksi (presetId ?? fallback).
     const resolvedPresetId: PlacementPresetId =
-      garmentModel === 'hoodie' && currentSide !== 'front' ? fallback : (presetId ?? fallback);
+      currentSide !== 'front' ? fallback : (presetId ?? fallback);
     const preset = PLACEMENT_PRESETS.find((p) => p.id === resolvedPresetId) ?? PLACEMENT_PRESETS[0];
     const defPos = getPresetDefaultPosition(preset.id, garmentModel);
     const layer: GraphicSettings = {
