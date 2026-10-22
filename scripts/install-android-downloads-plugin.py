@@ -59,7 +59,28 @@ public class DownloadsPlugin extends Plugin {
 
             ContentValues published = new ContentValues();
             published.put(MediaStore.Downloads.IS_PENDING, 0);
-            getContext().getContentResolver().update(uri, published, null, null);
+            int updated = getContext().getContentResolver().update(uri, published, null, null);
+            if (updated <= 0) {
+                throw new IllegalStateException("Android gagal menyelesaikan penyimpanan file ke folder Download.");
+            }
+
+            // Verify the saved item is queryable in the public Downloads collection.
+            try (android.database.Cursor cursor = getContext().getContentResolver().query(
+                    uri,
+                    new String[] { MediaStore.Downloads.DISPLAY_NAME, MediaStore.Downloads.SIZE, MediaStore.Downloads.IS_PENDING },
+                    null, null, null)) {
+                if (cursor == null || !cursor.moveToFirst()) {
+                    throw new IllegalStateException("File belum ditemukan kembali di folder Download setelah ditulis.");
+                }
+                int sizeIndex = cursor.getColumnIndex(MediaStore.Downloads.SIZE);
+                int pendingIndex = cursor.getColumnIndex(MediaStore.Downloads.IS_PENDING);
+                if (sizeIndex >= 0 && cursor.getLong(sizeIndex) <= 0) {
+                    throw new IllegalStateException("File di folder Download kosong.");
+                }
+                if (pendingIndex >= 0 && cursor.getInt(pendingIndex) != 0) {
+                    throw new IllegalStateException("File masih berstatus proses dan belum selesai disimpan.");
+                }
+            }
 
             JSObject result = new JSObject();
             result.put("uri", uri.toString());
