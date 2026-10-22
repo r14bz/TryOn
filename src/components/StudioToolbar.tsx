@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Image, Sun, Moon, Compass, ChevronDown } from 'lucide-react';
+import { Box, Image, Sun, Moon, Eye, EyeOff, ChevronDown } from 'lucide-react';
 import { PlacementSide, StudioBgColor, GarmentModel } from '../types/sablon';
 import { GARMENT_MODELS } from '../data/garmentModels';
 
@@ -78,7 +78,7 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({
               </option>
             ))}
           </select>
-          <ChevronDown className="w-3.5 h-3.5 absolute right-2 pointer-events-none text-brand" />
+          <ChevronDown className={`w-3.5 h-3.5 absolute right-2 pointer-events-none ${dark ? 'text-brand' : 'text-zinc-900'}`} />
         </div>
 
         <div className="flex-1" />
@@ -92,7 +92,7 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({
             showSideNav ? 'bg-brand text-zinc-950 border-brand' : box
           }`}
         >
-          <Compass className="w-4 h-4" />
+          {showSideNav ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
         </button>
 
         {/* Tema studio */}
