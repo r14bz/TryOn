@@ -354,40 +354,42 @@ export default function App() {
         {isCustomizerExpanded ? (
           <aside className="flex-1 lg:flex-none lg:w-[420px] xl:w-[460px] h-full bg-zinc-925 flex flex-col min-h-0 overflow-hidden shadow-2xl z-20 transition-all duration-300 border-t lg:border-t-0 lg:border-l border-zinc-800">
             <div className="flex items-center justify-between border-b border-zinc-850 px-2 sm:px-3 bg-zinc-950/90 shrink-0">
-              <div className="flex-1 flex items-center">
+              <div className="flex-1 flex items-center justify-around">
                 {TABS.map(({ id, label, Icon }) => (
                   <button
                     key={id}
                     onClick={() => handleTabClick(id)}
-                    className={`flex-1 min-h-[44px] py-2.5 text-xs font-semibold flex items-center justify-center gap-1.5 border-b-2 transition-colors touch-manipulation ${
+                    className={`flex flex-col items-center justify-center gap-1 py-1 min-w-[54px] text-[10px] border-b-2 transition-colors touch-manipulation ${
                       activeSidebarTab === id
                         ? 'border-brand text-white font-bold'
                         : 'border-transparent text-zinc-400 hover:text-zinc-200'
                     }`}
                   >
-                    <Icon className="w-3.5 h-3.5 shrink-0" />
+                    <Icon className="w-4 h-4 shrink-0 text-brand" />
                     <span className="truncate">{label}</span>
                   </button>
                 ))}
-              <button
-                onClick={() => setIsExportOpen(true)}
-                title="Simpan / ekspor desain"
-                aria-label="Simpan"
-                className="ml-2 h-8 px-2 sm:px-2.5 rounded-lg bg-brand hover:bg-brand/85 text-zinc-950 text-[11px] font-semibold flex items-center gap-1 transition-colors shrink-0 touch-manipulation"
-              >
-                <Download className="w-3.5 h-3.5 shrink-0" />
-                <span className="hidden sm:inline">Simpan</span>
-              </button>
+                <button
+                  onClick={() => setIsExportOpen(true)}
+                  title="Simpan / ekspor desain"
+                  aria-label="Simpan"
+                  className="h-9 px-2.5 rounded-lg bg-brand hover:bg-brand/85 text-zinc-950 text-xs font-semibold flex items-center gap-1.5 touch-manipulation"
+                >
+                  <Download className="w-4 h-4 shrink-0" />
+                  <span>Simpan</span>
+                </button>
               </div>
+
+              <div className="w-[1px] h-8 bg-zinc-800 mx-2" />
 
               <button
                 onClick={() => setIsCustomizerExpanded(false)}
                 title="Sembunyikan panel"
                 aria-label="Sembunyikan panel"
-                className="ml-1 w-9 min-h-[36px] text-zinc-400 hover:text-brand hover:bg-zinc-900 rounded-lg flex items-center justify-center transition-colors shrink-0 touch-manipulation"
+                className="h-9 w-9 shrink-0 bg-zinc-900 border border-zinc-800 text-brand rounded-lg flex items-center justify-center shadow-md touch-manipulation"
               >
-                <ChevronDown className="w-4 h-4 lg:hidden text-brand" />
-                <ChevronRight className="w-4 h-4 hidden lg:block text-brand" />
+                <ChevronDown className="w-4 h-4 lg:hidden" />
+                <ChevronRight className="w-4 h-4 hidden lg:block" />
               </button>
             </div>
 
