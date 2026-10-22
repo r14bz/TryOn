@@ -432,12 +432,7 @@ export default function App() {
               )}
             </div>
 
-            <div className="px-4 py-2 border-t border-zinc-850 bg-zinc-950/95 flex items-baseline justify-between shrink-0">
-              <span className="text-sm font-bold font-mono text-brand">
-                Rp {unitEstimate.toLocaleString('id-ID')}
-                <span className="text-[10px] font-normal text-zinc-400"> / pcs</span>
-              </span>
-            </div>
+            {/* Panel bawah bersih */}
           </aside>
         ) : (
           <>

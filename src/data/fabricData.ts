@@ -156,8 +156,8 @@ export const PLACEMENT_PRESETS: PlacementPreset[] = [
     side: 'sleeve_left',
     dimensionsCm: { width: 8, height: 8 },
     defaultScale: 0.45,
-    defaultX: 0,
-    defaultY: -5
+    defaultX: 46,
+    defaultY: -15
   },
   {
     id: 'sleeve_right',
@@ -165,8 +165,8 @@ export const PLACEMENT_PRESETS: PlacementPreset[] = [
     side: 'sleeve_right',
     dimensionsCm: { width: 8, height: 8 },
     defaultScale: 0.45,
-    defaultX: 0,
-    defaultY: -5
+    defaultX: -46,
+    defaultY: -15
   },
   {
     id: 'custom',
