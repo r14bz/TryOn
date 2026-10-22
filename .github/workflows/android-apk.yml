@@ -46,6 +46,27 @@ jobs:
       - name: Install native Android Downloads plugin
         run: python3 scripts/install-android-downloads-plugin.py
 
+      - name: Validate AndroidManifest XML
+        run: |
+          echo "=== Validate plugin installer script ==="
+          python3 -m py_compile scripts/install-android-downloads-plugin.py
+
+          echo "=== AndroidManifest.xml ==="
+          cat -n android/app/src/main/AndroidManifest.xml
+
+          echo "=== Validate XML ==="
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+
+          path = "android/app/src/main/AndroidManifest.xml"
+          try:
+              ET.parse(path)
+              print("XML VALID")
+          except ET.ParseError as e:
+              print(f"XML INVALID: {e}")
+              raise
+          PY
+
       - name: Prepare launcher icon with more padding
         run: |
           python3 -m pip install --user Pillow
