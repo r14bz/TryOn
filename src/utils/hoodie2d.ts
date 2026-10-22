@@ -49,13 +49,8 @@ const cross = (a: Vec3, b: Vec3): Vec3 => [
   a[2] * b[0] - a[0] * b[2],
   a[0] * b[1] - a[1] * b[0]
 ];
-const smooth01 = (x: number) => {
-  const t = x < 0 ? 0 : x > 1 ? 1 : x;
-  return t * t * (3 - 2 * t);
-};
-/** bobot tekuk pada jarak `along` dari bahu (sama dengan skrip render foto) */
-const bendAngle = (along: number) =>
-  HOODIE_2D.bend * smooth01((along - HOODIE_2D.rampStart) / (HOODIE_2D.rampEnd - HOODIE_2D.rampStart));
+/** bobot tekuk pada jarak `along` dari bahu. Model baru: bend=0, lengan lurus. */
+const bendAngle = (along: number) => HOODIE_2D.bend;
 
 /**
  * Penempatan sablon pada foto hoodie 2D, dihitung dari satuan model 3D yang sama dengan tampilan 3D

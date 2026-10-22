@@ -30,15 +30,15 @@ export const HOODIE_SLEEVE_CENTER = {
 } as const;
 
 /**
- * Foto 2D hoodie adalah render ortografis model 3D (tools: render2d.py) dengan lengan ditekuk ke
- * bawah agar mengisi kanvas. Parameter ini menghubungkan satuan model dengan piksel foto.
+ * Foto 2D hoodie adalah render ortografis model 3D (Virtual Pandora CC BY 4.0, dirender ulang).
+ * Lengan pada model baru sudah lurus, jadi bend = 0. Parameter menghubungkan satuan model dengan piksel.
  */
 export const HOODIE_2D = {
-  /** piksel per satuan model pada kanvas 1024 px; titik (0,0) model = tengah kanvas */
-  ppu: 950,
-  /** sudut tekuk lengan ke bawah pada foto (rad) */
-  bend: 0.8,
-  /** tekukan naik halus dari bahu: jarak sepanjang lengan mulai dan selesai menekuk */
-  rampStart: -0.02,
-  rampEnd: 0.34
+  /** piksel per satuan model pada kanvas 1024 px; render 2440.6 ppu, scaled to 1024 */
+  ppu: 1220.3,
+  /** sudut tekuk lengan ke bawah pada foto (rad); model baru: lengan lurus */
+  bend: 0,
+  /** tekukan naik halus dari bahu: jarak sepanjang lengan mulai dan selesai menekuk (tidak dipakai saat bend=0) */
+  rampStart: 0,
+  rampEnd: 0
 } as const;
