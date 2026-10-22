@@ -43,10 +43,20 @@ jobs:
       - name: Generate Android project
         run: npx cap add android
 
-      - name: Generate Android launcher icons from Try-D logo
+      - name: Install native Android Downloads plugin
+        run: python3 scripts/install-android-downloads-plugin.py
+
+      - name: Prepare launcher icon with more padding
         run: |
           mkdir -p assets
-          cp public/icon-512.png assets/icon.png
+          python3 - <<'PY'
+          from PIL import Image
+          source = Image.open("public/icon-512.png").convert("RGBA")
+          canvas = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
+          artwork = source.resize((390, 390), Image.Resampling.LANCZOS)
+          canvas.alpha_composite(artwork, ((512 - 390) // 2, (512 - 390) // 2))
+          canvas.save("assets/icon.png")
+          PY
           npx --yes @capacitor/assets generate --android
 
       - name: Sync Capacitor
