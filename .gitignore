@@ -8,3 +8,8 @@ coverage/
 !.env.example
 fix-sleeve-bleed.patch
 *.zip
+
+# Capacitor / Android
+android/
+.capacitor/
+capacitor-cordova.json
