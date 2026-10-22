@@ -9,12 +9,12 @@ import {
   ExportFormat,
   ExportMode,
   canvasToBlob,
-  downloadBlob,
   renderExportCanvas,
   renderGraphicLayers,
   renderGarmentLayer
 } from '../utils/exportDesign';
 import { ShirtSide, graphicShownOnView } from '../utils/fabricRenderer';
+import { saveExportBlob } from '../utils/saveExport';
 
 interface ExportModalProps {
   /** model pakaian yang sedang dipakai di studio */
@@ -190,7 +190,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             }
             const blob = await canvasToBlob(canvas, format);
             const name = `${filePrefix}-3d-${color.id}-${SIDE_FILE_LABEL[view]}-${exporter.size}px.${EXT[format]}`;
-            downloadBlob(blob, name);
+            await saveExportBlob(blob, name);
             saved.push(name);
             canvas.width = 0;
             canvas.height = 0;
@@ -204,7 +204,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               title: `${garmentLabel} 3D`
             });
             const name = `${filePrefix}-3d-${color.id}-${(views as PlacementSide[]).map((v) => SIDE_FILE_LABEL[v]).join('+')}-${exporter.size}px.pdf`;
-            downloadBlob(blob, name);
+            await saveExportBlob(blob, name);
             saved.push(name);
             pdfPages.forEach((c) => { c.width = 0; c.height = 0; });
           }
@@ -231,7 +231,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             if (layers.length === 0) continue;
             const blob = await buildSvg(size, size, layers, bgForFormat);
             const name = `${filePrefix}-${baseName}-${SIDE_FILE_LABEL[view]}-${size}px.svg`;
-            downloadBlob(blob, name);
+            await saveExportBlob(blob, name);
             saved.push(name);
             layers.forEach((l) => { l.canvas.width = 0; l.canvas.height = 0; });
             continue;
@@ -267,7 +267,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             layers.push(...(await renderGraphicLayers(view, scale, ctxData)));
             const blob = buildPsd(size, size, layers, canvas, bgForFormat === 'black' ? 'black' : 'white');
             const name = `${filePrefix}-${baseName}-${SIDE_FILE_LABEL[view]}-${size}px.psd`;
-            downloadBlob(blob, name);
+            await saveExportBlob(blob, name);
             saved.push(name);
             layers.forEach((l) => { l.canvas.width = 0; l.canvas.height = 0; });
             canvas.width = 0;
@@ -277,7 +277,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
           const blob = await canvasToBlob(canvas, format);
           const name = `${filePrefix}-${baseName}-${SIDE_FILE_LABEL[view]}-${size}px.${EXT[format]}`;
-          downloadBlob(blob, name);
+          await saveExportBlob(blob, name);
           saved.push(name);
           // release the big bitmap right away
           canvas.width = 0;
@@ -293,7 +293,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             title: `${garmentLabel} ${mode === 'design' ? 'desain' : 'mockup'}`
           });
           const name = `${filePrefix}-${baseName}-${pdfViews.map((v) => SIDE_FILE_LABEL[v]).join('+')}-${size}px.pdf`;
-          downloadBlob(blob, name);
+          await saveExportBlob(blob, name);
           saved.push(name);
           pdfPages.forEach((c) => { c.width = 0; c.height = 0; });
         }
@@ -324,7 +324,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             <Download className="w-5 h-5 text-brand shrink-0" />
             <div>
               <h2 className="text-sm font-bold text-white font-display">Simpan Gambar Desain</h2>
-              <p className="text-[11px] text-zinc-400">Hasil resolusi tinggi, langsung diunduh</p>
+              <p className="text-[11px] text-zinc-400">Resolusi tinggi • unduh di web, simpan ke Dokumen di Android</p>
             </div>
           </div>
           <button
