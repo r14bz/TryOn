@@ -43,6 +43,12 @@ jobs:
       - name: Generate Android project
         run: npx cap add android
 
+      - name: Generate Android launcher icons from Try-D logo
+        run: |
+          mkdir -p assets
+          cp public/icon-512.png assets/icon.png
+          npx --yes @capacitor/assets generate --android
+
       - name: Sync Capacitor
         run: npx cap sync android
 
