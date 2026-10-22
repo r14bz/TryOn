@@ -188,7 +188,7 @@ if manifest.exists():
         close = manifest_text.find(">")
         if close < 0:
             raise SystemExit("Tag manifest tidak ditemukan.")
-        manifest_text = manifest_text[:close + 1] + "\\n    " + permission + manifest_text[close + 1:]
+        manifest_text = manifest_text[:close + 1] + "\n    " + permission + manifest_text[close + 1:]
         manifest.write_text(manifest_text, encoding="utf-8")
 else:
     raise SystemExit("AndroidManifest.xml tidak ditemukan.")
