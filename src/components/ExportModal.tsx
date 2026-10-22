@@ -302,7 +302,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
       setMessage(
         saved.length
-          ? { kind: 'ok', text: `Tersimpan: ${saved.join(', ')}` }
+          ? { kind: 'ok', text: Capacitor.isNativePlatform()\n            ? `File berhasil ditulis ke Dokumen aplikasi Try-D dan dialog simpan/bagikan sudah dibuka: ${saved.join(', ')}`\n            : `Unduhan dimulai: ${saved.join(', ')}` }
           : { kind: 'error', text: 'Tidak ada gambar sablon pada sisi yang dipilih.' }
       );
     } catch (err) {
@@ -327,7 +327,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             <Download className="w-5 h-5 text-brand shrink-0" />
             <div>
               <h2 className="text-sm font-bold text-white font-display">Simpan Gambar Desain</h2>
-              <p className="text-[11px] text-zinc-400">{Capacitor.isNativePlatform() ? 'File Android disimpan di Dokumen aplikasi Try-D' : 'Hasil resolusi tinggi, langsung diunduh'}</p>
+              <p className="text-[11px] text-zinc-400">{Capacitor.isNativePlatform() ? 'Android: simpan lalu pilih tujuan melalui dialog sistem' : 'Hasil resolusi tinggi, langsung diunduh'}</p>
             </div>
           </div>
           <button
