@@ -98,39 +98,74 @@ export const TSHIRT_COLORS: TshirtColor[] = [
     dark: true
   },
 
-  // Bright Colors (Cerah & Neon)
+  // Bright Colors (Warna Cerah Standar)
   {
-    id: 'neon_yellow',
-    name: 'Neon Yellow',
-    hex: '#FFFF00',
+    id: 'red',
+    name: 'Merah (Red)',
+    hex: '#DC143C',
     category: 'bright',
     dark: false
   },
   {
-    id: 'neon_orange',
-    name: 'Neon Orange',
-    hex: '#FF6600',
+    id: 'royal_blue',
+    name: 'Biru Royal (Royal Blue)',
+    hex: '#4169E1',
     category: 'bright',
     dark: false
   },
   {
-    id: 'neon_pink',
-    name: 'Neon Pink',
-    hex: '#FF1493',
+    id: 'kelly_green',
+    name: 'Hijau Kelly (Kelly Green)',
+    hex: '#4CBB17',
     category: 'bright',
     dark: false
   },
   {
-    id: 'neon_green',
-    name: 'Neon Green',
-    hex: '#39FF14',
+    id: 'yellow',
+    name: 'Kuning (Yellow)',
+    hex: '#FFD700',
     category: 'bright',
     dark: false
   },
   {
-    id: 'neon_cyan',
-    name: 'Neon Cyan',
-    hex: '#00FFFF',
+    id: 'orange',
+    name: 'Orange',
+    hex: '#FF8C00',
+    category: 'bright',
+    dark: false
+  },
+  {
+    id: 'purple',
+    name: 'Ungu (Purple)',
+    hex: '#9370DB',
+    category: 'bright',
+    dark: false
+  },
+  {
+    id: 'hot_pink',
+    name: 'Pink Cerah (Hot Pink)',
+    hex: '#FF69B4',
+    category: 'bright',
+    dark: false
+  },
+  {
+    id: 'brown',
+    name: 'Coklat (Brown)',
+    hex: '#8B4513',
+    category: 'bright',
+    dark: true
+  },
+  {
+    id: 'turquoise',
+    name: 'Biru Turkis (Turquoise)',
+    hex: '#40E0D0',
+    category: 'bright',
+    dark: false
+  },
+  {
+    id: 'lime',
+    name: 'Hijau Lime (Lime)',
+    hex: '#32CD32',
     category: 'bright',
     dark: false
   },
