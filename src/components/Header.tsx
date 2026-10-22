@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Download, Calculator, Smartphone, Layers } from 'lucide-react';
+import { Calculator, Smartphone, Layers } from 'lucide-react';
 import { usePwaInstall } from '../utils/pwaInstall';
 import logo from '../assets/logo-try-d.png';
 
@@ -46,14 +46,6 @@ export const Header: React.FC<HeaderProps> = ({
         >
           <Calculator className="w-3.5 h-3.5 text-brand shrink-0" />
           <span className="hidden sm:inline">Biaya</span>
-        </button>
-
-        <button
-          onClick={onOpenExport}
-          className="h-8 px-2 sm:px-3 text-[11px] sm:text-xs font-semibold text-zinc-950 bg-brand hover:bg-brand/85 rounded-lg shadow-sm active:scale-95 transition-all whitespace-nowrap flex items-center gap-1 touch-manipulation"
-        >
-          <Download className="w-3.5 h-3.5 shrink-0" />
-          <span>Simpan</span>
         </button>
 
         {installMode !== 'none' && (
