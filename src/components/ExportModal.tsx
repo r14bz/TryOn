@@ -302,7 +302,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
       setMessage(
         saved.length
-          ? { kind: 'ok', text: Capacitor.isNativePlatform()\n            ? `File berhasil ditulis ke Dokumen aplikasi Try-D dan dialog simpan/bagikan sudah dibuka: ${saved.join(', ')}`\n            : `Unduhan dimulai: ${saved.join(', ')}` }
+          ? {
+              kind: 'ok',
+              text: Capacitor.isNativePlatform()
+                ? `File berhasil ditulis ke Dokumen aplikasi Try-D dan dialog simpan/bagikan sudah dibuka: ${saved.join(', ')}`
+                : `Unduhan dimulai: ${saved.join(', ')}`
+            }
           : { kind: 'error', text: 'Tidak ada gambar sablon pada sisi yang dipilih.' }
       );
     } catch (err) {
