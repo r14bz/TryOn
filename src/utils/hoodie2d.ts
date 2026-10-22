@@ -1,6 +1,6 @@
 import type { GraphicSettings } from '../types/sablon';
 import { getModelPlacement } from './placement';
-import { HOODIE_2D, HOODIE_SLEEVE } from '../data/hoodieConfig';
+import { HOODIE_2D } from '../data/hoodieConfig';
 
 import whiteFrontUrl from '../assets/hoodie/hoodie_white_front.jpg';
 import whiteBackUrl from '../assets/hoodie/hoodie_white_back.jpg';
@@ -43,15 +43,6 @@ export interface Placement2D {
   extraRot: number;
 }
 
-type Vec3 = [number, number, number];
-const cross = (a: Vec3, b: Vec3): Vec3 => [
-  a[1] * b[2] - a[2] * b[1],
-  a[2] * b[0] - a[0] * b[2],
-  a[0] * b[1] - a[1] * b[0]
-];
-/** bobot tekuk pada jarak `along` dari bahu. Model baru: bend=0, lengan lurus. */
-const bendAngle = (along: number) => HOODIE_2D.bend;
-
 /**
  * Penempatan sablon pada foto hoodie 2D, dihitung dari satuan model 3D yang sama dengan tampilan 3D
  * (getModelPlacement) sehingga sablon jatuh di tempat yang sama di 2D dan 3D.
@@ -71,45 +62,23 @@ export function getHoodiePlacement2D(
   const cy0 = height / 2;
 
   if (graphic.side === 'sleeve_left' || graphic.side === 'sleeve_right') {
+    // Virtual Pandora 2D render: lengan di x ±~0.177, y ≈ 0.583 (render center 0.543 + offset)
+    // Posisi dihitung langsung di ruang render 2D, bukan transformasi dari 3D model.
+    const sleeveX = 0.177; // setengah lebar lengan di Virtual Pandora (dari make_regions.py HW=182, 512px=0.177)
+    const sleeveY = 0.583; // tinggi lengan di model render (bahu-bawah)
     const sign = graphic.side === 'sleeve_left' ? 1 : -1;
-    const cfg = graphic.side === 'sleeve_left' ? HOODIE_SLEEVE.left : HOODIE_SLEEVE.right;
-    const A: Vec3 = [cfg.axis[0], cfg.axis[1], cfg.axis[2]];
-    const R0: Vec3 = [cfg.facing[0], cfg.facing[1], cfg.facing[2]];
-    const right0 = cross(R0, A);
-    const t = HOODIE_SLEEVE.alongStart + (graphic.y / 50) * place.rangeY;
-    const phi = (graphic.x / 50) * HOODIE_SLEEVE.maxAngle;
-    const r = HOODIE_SLEEVE.armRadius;
-    // Pada foto, lengan dilihat dari depan: sablon berada di tengah lebar lengan saat slider
-    // Kiri/Kanan = 0, lalu bergeser melintang lengan sebesar r*sin(sudut) (lengan belum ditekuk)
-    const v: Vec3 = [
-      t * A[0] + r * Math.sin(phi) * right0[0],
-      t * A[1] + r * Math.sin(phi) * right0[1],
-      0
-    ];
-    const psi = bendAngle(t);
-    const cb = Math.cos(psi);
-    const sb = Math.sin(psi);
-    const vx = v[0] * sign;
-    const px = cfg.point[0] + (vx * cb + v[1] * sb) * sign;
-    const py = cfg.point[1] + (-vx * sb + v[1] * cb);
-    // arah "atas" gambar = ke arah bahu, ikut tertekuk
-    const ax = -A[0] * sign;
-    const ay = -A[1];
-    const ux = (ax * cb + ay * sb) * sign;
-    const uy = -ax * sb + ay * cb;
-    return {
-      cx: cx0 + px * ppu,
-      cy: cy0 - py * ppu,
-      printW,
-      printH,
-      extraRot: (Math.atan2(ux, uy) * 180) / Math.PI
-    };
+    const X = sleeveX * sign + (graphic.x / 50) * place.rangeX;
+    const Y = sleeveY - (graphic.y / 50) * place.rangeY;
+    const Y_2d = Y - 0.543; // shift ke koordinat render
+    return { cx: cx0 + X * ppu, cy: cy0 - Y_2d * ppu, printW, printH, extraRot: 0 };
   }
 
-  // Badan. Posisi "kanan" layar sama di tampak depan maupun belakang (lihat getPrintFrame).
+  // Badan. Model 2D render (Virtual Pandora) berpusat pada y=0.543, bukan y=0 seperti model 3D.
+  // Tambahkan offset 0.543 agar body placement jatuh di vertikal yang tepat.
   const X = (graphic.x / 50) * place.rangeX;
   const Y = place.baseY - (graphic.y / 50) * place.rangeY;
-  return { cx: cx0 + X * ppu, cy: cy0 - Y * ppu, printW, printH, extraRot: 0 };
+  const Y_2d = Y - 0.543; // shift ke koordinat render 2D
+  return { cx: cx0 + X * ppu, cy: cy0 - Y_2d * ppu, printW, printH, extraRot: 0 };
 }
 
 /**

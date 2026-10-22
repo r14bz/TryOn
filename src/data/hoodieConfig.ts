@@ -6,7 +6,9 @@
 
 /**
  * Lengan hoodie dicetak dengan pemetaan silinder (sablon melengkung mengikuti lengan, tidak melar).
- * Hasil pengukuran garis tengah lengan pada GLB hoodie. Ganti GLB => ukur ulang.
+ * Virtual Pandora model: lengan lurus, diukur dari render ortografis.
+ * Catatan: nilai 3D (point, axis, facing) hanya dipakai untuk tampilan 3D (shirt3d.ts);
+ * untuk 2D, posisi lengan ditentukan langsung oleh model render Virtual Pandora (x ±0.38, y ≈0.55).
  */
 export const HOODIE_SLEEVE = {
   /** radius lengan atas, dipakai mengubah sudut keliling menjadi jarak busur */
@@ -15,7 +17,9 @@ export const HOODIE_SLEEVE = {
   alongStart: 0.17,
   /** geser Kiri/Kanan -50..50% memutar sablon mengelilingi lengan sebesar +/- sudut ini (rad) */
   maxAngle: 1.2,
-  /** point = titik garis tengah dekat bahu, axis = arah bahu->manset, facing = arah sablon menghadap (depan-atas-luar) */
+  /** point = titik garis tengah dekat bahu, axis = arah bahu->manset, facing = arah sablon menghadap (depan-atas-luar)
+   *  Nilai untuk repo hoodie.glb (tidak diubah agar kaos tetap kalibrasi).
+   *  2D Virtual Pandora render menggunakan model ruang berbeda — lihat getHoodiePlacement2D. */
   left: { point: [0.299, 0.173, -0.036], axis: [0.9007, -0.4339, -0.021], facing: [0.2269, 0.4288, 0.8744] },
   right: { point: [-0.299, 0.173, -0.036], axis: [-0.9007, -0.4339, -0.021], facing: [-0.2269, 0.4288, 0.8744] }
 } as const;
