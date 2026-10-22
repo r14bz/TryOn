@@ -150,6 +150,19 @@ export async function createShirt3DExporter(
     if (garment === 'hoodie') gltf.scene.scale.setScalar(0.82);
     root.add(gltf.scene);
 
+    // Framing eksport harus menampung seluruh pakaian tanpa terpotong. Kanvas
+    // render eksport berbentuk persegi (aspect 1), jadi frustum horizontal lebih
+    // ketat daripada studio. Jarak kamera di-derive dari bounding sphere model
+    // supaya lengan hoodie (lebar + bergenggam) tidak keluar dari frame.
+    gltf.scene.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(gltf.scene);
+    const sphere = bounds.getBoundingSphere(new THREE.Sphere());
+    const fovHalfRad = (35 * Math.PI) / 180;
+    // Jarak kamera agar seluruh bounding sphere muat di dalam frustum persegi
+    let cameraDistance = sphere.radius / Math.sin(fovHalfRad);
+    cameraDistance = Math.max(1.35, Math.min(2.6, cameraDistance * 1.1));
+    camera.position.set(0, 0, cameraDistance);
+
     // Tekstur sablon: lebih tajam untuk gambar besar
     const texW = size >= 2048 ? 2048 : 1024;
     const anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
