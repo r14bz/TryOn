@@ -38,8 +38,10 @@ export const HOODIE_SLEEVE_CENTER = {
  * Lengan pada model baru sudah lurus, jadi bend = 0. Parameter menghubungkan satuan model dengan piksel.
  */
 export const HOODIE_2D = {
-  /** piksel per satuan model pada kanvas 1024 px; render 2440.6 ppu, scaled to 1024 */
-  ppu: 1220.3,
+  /** piksel per satuan model sumbu X pada kanvas 1024 px (diukur dari region map body width 181 px = 0.195 model unit) */
+  ppuX: 928,
+  /** piksel per satuan model sumbu Y pada kanvas 1024 px (dari render ppu 2440.6 disesuaikan tinggi model 0.82) */
+  ppuY: 1149,
   /** sudut tekuk lengan ke bawah pada foto (rad); model baru: lengan lurus */
   bend: 0,
   /** tekukan naik halus dari bahu: jarak sepanjang lengan mulai dan selesai menekuk (tidak dipakai saat bend=0) */

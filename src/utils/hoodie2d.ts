@@ -44,9 +44,9 @@ export interface Placement2D {
 }
 
 /**
- * Penempatan sablon pada foto hoodie 2D, dihitung dari satuan model 3D yang sama dengan tampilan 3D
- * (getModelPlacement) sehingga sablon jatuh di tempat yang sama di 2D dan 3D.
- * Badan: proyeksi lurus. Lengan: titik pada permukaan lengan yang sudah ditekuk seperti pada foto.
+ * Penempatan sablon pada foto hoodie 2D. Render Virtual Pandora punya aspek rasio berbeda dari model 3D repo,
+ * jadi digunakan ppuX dan ppuY terpisah untuk pemetaan yang akurat.
+ * Badan: proyeksi langsung dari repo model space ke pixel. Lengan: anchor pixel dari region map (diukur).
  */
 export function getHoodiePlacement2D(
   width: number,
@@ -54,31 +54,34 @@ export function getHoodiePlacement2D(
   aspect: number,
   graphic: GraphicSettings
 ): Placement2D {
-  const ppu = HOODIE_2D.ppu * (width / 1024);
+  const ppuX = HOODIE_2D.ppuX * (width / 1024);
+  const ppuY = HOODIE_2D.ppuY * (width / 1024);
   const place = getModelPlacement(graphic.side, 'hoodie');
-  const printW = place.baseWidth * graphic.scale * ppu;
+  const printW = place.baseWidth * graphic.scale * ppuX;
   const printH = printW * aspect;
   const cx0 = width / 2;
   const cy0 = height / 2;
 
   if (graphic.side === 'sleeve_left' || graphic.side === 'sleeve_right') {
-    // Virtual Pandora 2D render: lengan di x ±~0.177, y ≈ 0.583 (render center 0.543 + offset)
-    // Posisi dihitung langsung di ruang render 2D, bukan transformasi dari 3D model.
-    const sleeveX = 0.177; // setengah lebar lengan di Virtual Pandora (dari make_regions.py HW=182, 512px=0.177)
-    const sleeveY = 0.583; // tinggi lengan di model render (bahu-bawah)
+    // Lengan pada foto Virtual Pandora: diukur dari region map PNG channel G/B.
+    // Mid-arm (y ≈ 620 di 1024 canvas): left sleeve cx ≈ 732, right sleeve cx ≈ 292 (±220 dari center).
+    // Slider offset menggunakan rangeX/Y dari placement.ts, dikalikan ppuX/ppuY.
     const sign = graphic.side === 'sleeve_left' ? 1 : -1;
-    const X = sleeveX * sign + (graphic.x / 50) * place.rangeX;
-    const Y = sleeveY - (graphic.y / 50) * place.rangeY;
-    const Y_2d = Y - 0.543; // shift ke koordinat render
-    return { cx: cx0 + X * ppu, cy: cy0 - Y_2d * ppu, printW, printH, extraRot: 0 };
+    const cx_base = cx0 + sign * 220;
+    const cy_base = cy0 + 108; // mid-arm vertical: 620 - 512 = 108 px offset
+    const rangeX_px = place.rangeX * ppuX;
+    const rangeY_px = place.rangeY * ppuY;
+    const cx = cx_base + (graphic.x / 50) * rangeX_px;
+    const cy = cy_base + (graphic.y / 50) * rangeY_px;
+    return { cx, cy, printW, printH, extraRot: 0 };
   }
 
-  // Badan. Model 2D render (Virtual Pandora) berpusat pada y=0.543, bukan y=0 seperti model 3D.
-  // Tambahkan offset 0.543 agar body placement jatuh di vertikal yang tepat.
+  // Badan. Pemetaan langsung dari repo model space ke pixel dengan ppuX/ppuY terpisah.
   const X = (graphic.x / 50) * place.rangeX;
   const Y = place.baseY - (graphic.y / 50) * place.rangeY;
-  const Y_2d = Y - 0.543; // shift ke koordinat render 2D
-  return { cx: cx0 + X * ppu, cy: cy0 - Y_2d * ppu, printW, printH, extraRot: 0 };
+  const cx = cx0 + X * ppuX;
+  const cy = cy0 - Y * ppuY;
+  return { cx, cy, printW, printH, extraRot: 0 };
 }
 
 /**
