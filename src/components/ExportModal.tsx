@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Download, Loader2 } from 'lucide-react';
 import { FabricInfo, TshirtColor, GraphicSettings, PrintTechniqueInfo, PlacementSide, GarmentModel } from '../types/sablon';
 import { GARMENT_MODELS } from '../data/garmentModels';
+import type { LayerCanvas } from '../utils/exportFormats';
 import {
   BASE_SIZE,
   ExportBackground,
@@ -9,7 +10,9 @@ import {
   ExportMode,
   canvasToBlob,
   downloadBlob,
-  renderExportCanvas
+  renderExportCanvas,
+  renderGraphicLayers,
+  renderGarmentLayer
 } from '../utils/exportDesign';
 import { ShirtSide, graphicShownOnView } from '../utils/fabricRenderer';
 
@@ -136,6 +139,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   // Pilihan sisi dan resolusi berbeda antara hasil 2D dan 3D; rapikan saat jenis hasil berganti
   const handleModeChange = (next: ExportMode) => {
     setMode(next);
+    if (next === '3d' && (format === 'psd' || format === 'svg')) setFormat('png');
+    if (next !== 'design' && format === 'svg') setFormat('png');
     if (next === '3d') {
       if (viewChoice === 'both') setViewChoice('all');
       if (scale === 4) setScale(3);
@@ -145,10 +150,18 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     }
   };
   const hasTransparentConflict = format === 'jpeg' && background === 'transparent';
+  const EXT: Record<ExportFormat, string> = { png: 'png', jpeg: 'jpg', pdf: 'pdf', psd: 'psd', svg: 'svg' };
+  // PSD memuat banyak layer penuh di memori: dibatasi 2048 px
+  const PSD_MAX_SCALE = 2;
+  const handleFormatChange = (next: ExportFormat) => {
+    setFormat(next);
+    if (next === 'psd' && scale > PSD_MAX_SCALE) setScale(PSD_MAX_SCALE as Scale);
+  };
 
   const handleSave = async () => {
     setMessage(null);
     const saved: string[] = [];
+    const bgForFormat: ExportBackground = hasTransparentConflict ? 'white' : background;
     try {
       if (is3D) {
         // Render 3D memakai WebGL; modul dimuat saat dibutuhkan agar halaman awal tetap ringan
@@ -158,24 +171,52 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         const exporter = await createShirt3DExporter(
           { fabric, color, technique, graphics, garment: garmentModel },
           size,
-          hasTransparentConflict ? 'white' : background
+          bgForFormat
         );
+        const pdfPages: HTMLCanvasElement[] = [];
         try {
           for (const view of views as PlacementSide[]) {
             setBusy(`Memproses ${SIDE_TEXT_LABEL[view]} 3D (${exporter.size}px)…`);
             await new Promise((r) => setTimeout(r, 30));
             const canvas = exporter.renderView(view);
+            if (format === 'pdf') {
+              // salin: canvas milik exporter bisa dipakai ulang untuk sisi berikutnya
+              const copy = document.createElement('canvas');
+              copy.width = canvas.width;
+              copy.height = canvas.height;
+              copy.getContext('2d')!.drawImage(canvas, 0, 0);
+              pdfPages.push(copy);
+              continue;
+            }
             const blob = await canvasToBlob(canvas, format);
-            const name = `${filePrefix}-3d-${color.id}-${SIDE_FILE_LABEL[view]}-${exporter.size}px.${format === 'png' ? 'png' : 'jpg'}`;
+            const name = `${filePrefix}-3d-${color.id}-${SIDE_FILE_LABEL[view]}-${exporter.size}px.${EXT[format]}`;
             downloadBlob(blob, name);
             saved.push(name);
             canvas.width = 0;
             canvas.height = 0;
           }
+          if (format === 'pdf' && pdfPages.length) {
+            setBusy('Menyusun PDF…');
+            await new Promise((r) => setTimeout(r, 30));
+            const { canvasesToPdf } = await import('../utils/exportFormats');
+            const blob = await canvasesToPdf(pdfPages, {
+              transparent: bgForFormat === 'transparent',
+              title: `${garmentLabel} 3D`
+            });
+            const name = `${filePrefix}-3d-${color.id}-${(views as PlacementSide[]).map((v) => SIDE_FILE_LABEL[v]).join('+')}-${exporter.size}px.pdf`;
+            downloadBlob(blob, name);
+            saved.push(name);
+            pdfPages.forEach((c) => { c.width = 0; c.height = 0; });
+          }
         } finally {
           exporter.dispose();
         }
       } else {
+        const ctxData = { fabric, color, technique, graphics, garment: garmentModel };
+        const baseName = mode === 'design' ? 'desain' : color.id;
+        const pdfPages: HTMLCanvasElement[] = [];
+        const pdfViews: ShirtSide[] = [];
+
         for (const view of views as ShirtSide[]) {
           const hasPrints = graphics.some((g) => graphicShownOnView(g, view));
           if (mode === 'design' && !hasPrints) continue; // nothing to export for this side
@@ -184,18 +225,77 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           // let the browser paint the progress text before the heavy work
           await new Promise((r) => setTimeout(r, 30));
 
+          if (format === 'svg') {
+            const { buildSvg } = await import('../utils/exportFormats');
+            const layers = await renderGraphicLayers(view, scale, ctxData);
+            if (layers.length === 0) continue;
+            const blob = await buildSvg(size, size, layers, bgForFormat);
+            const name = `${filePrefix}-${baseName}-${SIDE_FILE_LABEL[view]}-${size}px.svg`;
+            downloadBlob(blob, name);
+            saved.push(name);
+            layers.forEach((l) => { l.canvas.width = 0; l.canvas.height = 0; });
+            continue;
+          }
+
           const canvas = await renderExportCanvas(
             view,
-            { mode, views: views as ShirtSide[], scale, background, format },
-            { fabric, color, technique, graphics, garment: garmentModel }
+            { mode, views: views as ShirtSide[], scale, background: bgForFormat, format },
+            ctxData
           );
+
+          if (format === 'pdf') {
+            pdfPages.push(canvas);
+            pdfViews.push(view);
+            continue;
+          }
+
+          if (format === 'psd') {
+            const { buildPsd } = await import('../utils/exportFormats');
+            const layers: LayerCanvas[] = [];
+            if (bgForFormat !== 'transparent') {
+              const solid = document.createElement('canvas');
+              solid.width = size;
+              solid.height = size;
+              const sctx = solid.getContext('2d')!;
+              sctx.fillStyle = bgForFormat === 'black' ? '#09090b' : '#ffffff';
+              sctx.fillRect(0, 0, size, size);
+              layers.push({ name: 'Latar', canvas: solid, x: 0, y: 0 });
+            }
+            if (mode === 'mockup') {
+              layers.push({ name: garmentLabel, canvas: await renderGarmentLayer(view, scale, ctxData), x: 0, y: 0 });
+            }
+            layers.push(...(await renderGraphicLayers(view, scale, ctxData)));
+            const blob = buildPsd(size, size, layers, canvas, bgForFormat === 'black' ? 'black' : 'white');
+            const name = `${filePrefix}-${baseName}-${SIDE_FILE_LABEL[view]}-${size}px.psd`;
+            downloadBlob(blob, name);
+            saved.push(name);
+            layers.forEach((l) => { l.canvas.width = 0; l.canvas.height = 0; });
+            canvas.width = 0;
+            canvas.height = 0;
+            continue;
+          }
+
           const blob = await canvasToBlob(canvas, format);
-          const name = `${filePrefix}-${mode === 'design' ? 'desain' : color.id}-${SIDE_FILE_LABEL[view]}-${size}px.${format === 'png' ? 'png' : 'jpg'}`;
+          const name = `${filePrefix}-${baseName}-${SIDE_FILE_LABEL[view]}-${size}px.${EXT[format]}`;
           downloadBlob(blob, name);
           saved.push(name);
           // release the big bitmap right away
           canvas.width = 0;
           canvas.height = 0;
+        }
+
+        if (format === 'pdf' && pdfPages.length) {
+          setBusy('Menyusun PDF…');
+          await new Promise((r) => setTimeout(r, 30));
+          const { canvasesToPdf } = await import('../utils/exportFormats');
+          const blob = await canvasesToPdf(pdfPages, {
+            transparent: bgForFormat === 'transparent',
+            title: `${garmentLabel} ${mode === 'design' ? 'desain' : 'mockup'}`
+          });
+          const name = `${filePrefix}-${baseName}-${pdfViews.map((v) => SIDE_FILE_LABEL[v]).join('+')}-${size}px.pdf`;
+          downloadBlob(blob, name);
+          saved.push(name);
+          pdfPages.forEach((c) => { c.width = 0; c.height = 0; });
         }
       }
 
@@ -209,7 +309,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       setMessage({
         kind: 'error',
         text:
-          'Gagal membuat gambar. Kemungkinan memori browser tidak cukup untuk resolusi ini, coba resolusi yang lebih kecil.'
+          'Gagal membuat file. Kemungkinan memori browser tidak cukup untuk resolusi ini, coba resolusi yang lebih kecil.'
       });
     } finally {
       setBusy(null);
@@ -280,7 +380,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 block mb-1.5">
               Resolusi (persegi)
             </label>
-            <Segmented<Scale> value={scale} onChange={setScale} options={is3D ? SCALES_3D : SCALES_2D} />
+            <Segmented<Scale>
+              value={scale}
+              onChange={setScale}
+              options={(is3D ? SCALES_3D : SCALES_2D).map((o) => ({ ...o, disabled: format === 'psd' && o.value > PSD_MAX_SCALE }))}
+            />
             {scale === 4 && (
               <p className="text-[10px] text-brand/90 mt-1">
                 4096px memakai banyak memori; di HP bisa gagal. Jika gagal, pilih resolusi lebih kecil.
@@ -288,34 +392,42 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 block mb-1.5">
-                Latar
-              </label>
-              <Segmented<ExportBackground>
-                value={background}
-                onChange={setBackground}
-                options={[
-                  { value: 'transparent', label: 'Kosong' },
-                  { value: 'white', label: 'Putih' },
-                  { value: 'black', label: 'Hitam' }
-                ]}
-              />
-            </div>
-            <div>
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 block mb-1.5">
-                Format
-              </label>
-              <Segmented<ExportFormat>
-                value={format}
-                onChange={setFormat}
-                options={[
-                  { value: 'png', label: 'PNG' },
-                  { value: 'jpeg', label: 'JPG' }
-                ]}
-              />
-            </div>
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 block mb-1.5">
+              Latar
+            </label>
+            <Segmented<ExportBackground>
+              value={background}
+              onChange={setBackground}
+              options={[
+                { value: 'transparent', label: 'Kosong' },
+                { value: 'white', label: 'Putih' },
+                { value: 'black', label: 'Hitam' }
+              ]}
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 block mb-1.5">
+              Format
+            </label>
+            <Segmented<ExportFormat>
+              value={format}
+              onChange={handleFormatChange}
+              options={[
+                { value: 'png', label: 'PNG' },
+                { value: 'jpeg', label: 'JPG' },
+                { value: 'pdf', label: 'PDF' },
+                { value: 'psd', label: 'PSD', disabled: is3D },
+                { value: 'svg', label: 'SVG', disabled: mode !== 'design' }
+              ]}
+            />
+            <p className="text-[10px] text-zinc-500 mt-1.5">
+              {format === 'pdf' && 'Beberapa sisi digabung menjadi satu PDF (satu halaman per sisi, 150 dpi).'}
+              {format === 'psd' && 'Photoshop berlapis: latar, pakaian, dan tiap gambar di layer sendiri (sablon datar tanpa lipatan kain). Maks 2048px.'}
+              {format === 'svg' && 'Tiap gambar menjadi layer bernama; bisa dibuka di CorelDRAW, Illustrator, dan Inkscape. Hanya untuk "Desain saja".'}
+              {(format === 'png' || format === 'jpeg') && 'SVG hanya tersedia untuk "Desain saja", PSD untuk hasil 2D. File AI dan CDR asli tidak didukung; pakai SVG atau PDF.'}
+            </p>
           </div>
           {hasTransparentConflict && (
             <p className="text-[10px] text-zinc-500 -mt-2">JPG tidak mendukung transparan, latar otomatis putih.</p>
