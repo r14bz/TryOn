@@ -48,6 +48,7 @@ jobs:
 
       - name: Prepare launcher icon with more padding
         run: |
+          python3 -m pip install --user Pillow
           mkdir -p assets
           python3 - <<'PY'
           from PIL import Image
