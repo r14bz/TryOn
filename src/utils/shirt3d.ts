@@ -342,7 +342,11 @@ export function getPrintFrame(side: PlacementSide, gx: number, gy: number, garme
   // Kaos: rentang geser slider asli (gx/100, produksi). Hoodie: slider -50..50 dipetakan
   // ke seluruh rentang pakaian (gx/50) karena panel hoodie lebih lebar dari kaos.
   const sliderDivisor = garment === 'hoodie' ? 50 : 100;
-  origin.addScaledVector(right, (gx / sliderDivisor) * place.rangeX);
+  // Hoodie lengan: arah geser Kiri/Kanan dibalik agar -50 = ke kiri, +50 = ke kanan.
+  // (right vector lengan mengarah ke dalam/badan, berlawanan dengan slider)
+  const isHoodieSleeve = garment === 'hoodie' && (side === 'sleeve_left' || side === 'sleeve_right');
+  const xDir = isHoodieSleeve ? -gx : gx;
+  origin.addScaledVector(right, (xDir / sliderDivisor) * place.rangeX);
   origin.addScaledVector(up, -(gy / sliderDivisor) * place.rangeY);
   return { axis, origin, right, up };
 }
