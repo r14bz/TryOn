@@ -23,6 +23,7 @@ import {
   MAX_GRAPHICS
 } from './types/sablon';
 import { FABRICS, PRINT_TECHNIQUES, GARMENT_SIZES, PLACEMENT_PRESETS } from './data/fabricData';
+import { getPresetDefaultPosition } from './utils/placement';
 import { TSHIRT_COLORS } from './data/colorData';
 import { SAMPLE_ARTWORKS } from './data/sampleArtworks';
 import { Header } from './components/Header';
@@ -156,14 +157,15 @@ export default function App() {
     const resolvedPresetId: PlacementPresetId =
       garmentModel === 'hoodie' && currentSide !== 'front' ? fallback : (presetId ?? fallback);
     const preset = PLACEMENT_PRESETS.find((p) => p.id === resolvedPresetId) ?? PLACEMENT_PRESETS[0];
+    const defPos = getPresetDefaultPosition(preset.id, garmentModel);
     const layer: GraphicSettings = {
       id: createGraphicId(),
       visible: true,
       imageUrl: image.url,
       imageName: image.name,
       side: preset.side,
-      x: preset.defaultX,
-      y: preset.defaultY,
+      x: defPos.x,
+      y: defPos.y,
       scale: preset.defaultScale,
       rotation: 0,
       opacity: 1.0,
@@ -426,6 +428,7 @@ export default function App() {
                 <PlacementPanel
                   graphics={graphics}
                   graphic={activeGraphic}
+                  garment={garmentModel}
                   onSelect={handleSelectGraphic}
                   onGraphicChange={handleGraphicChange}
                 />

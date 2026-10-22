@@ -21,6 +21,15 @@ export const HOODIE_SLEEVE = {
 } as const;
 
 /**
+ * Posisi tengah sablon pada lengan hoodie (hasil kalibrasi manual terhadap GLB hoodie).
+ * Nilai slider yang dipakai hanya untuk model hoodie; kaos memakai default preset produksi.
+ */
+export const HOODIE_SLEEVE_CENTER = {
+  sleeve_left: { x: 46, y: -15 },
+  sleeve_right: { x: -46, y: -15 }
+} as const;
+
+/**
  * Foto 2D hoodie adalah render ortografis model 3D (tools: render2d.py) dengan lengan ditekuk ke
  * bawah agar mengisi kanvas. Parameter ini menghubungkan satuan model dengan piksel foto.
  */

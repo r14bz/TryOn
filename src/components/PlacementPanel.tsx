@@ -1,11 +1,14 @@
 import React from 'react';
-import { GraphicSettings, PlacementPresetId, PlacementSide } from '../types/sablon';
+import { GarmentModel, GraphicSettings, PlacementPresetId, PlacementSide } from '../types/sablon';
 import { PLACEMENT_PRESETS } from '../data/fabricData';
+import { getPresetDefaultPosition, getSideCenterPosition } from '../utils/placement';
 
 interface PlacementPanelProps {
   graphics: GraphicSettings[];
   /** gambar yang sedang diatur */
   graphic: GraphicSettings | null;
+  /** model pakaian aktif: hoodie memakai posisi lengan khusus hoodie */
+  garment: GarmentModel;
   onSelect: (id: string) => void;
   onGraphicChange: (updated: Partial<GraphicSettings>) => void;
 }
@@ -61,7 +64,7 @@ const SliderRow: React.FC<SliderRowProps> = ({ label, value, min, max, step, nud
  * Kontrol posisi/ukuran sablon (tab "Posisi" di panel bawah). Memilih gambar yang diatur lewat
  * deretan thumbnail, lalu slider Kiri/Kanan, Atas/Bawah, Ukuran, dan Putar.
  */
-export const PlacementPanel: React.FC<PlacementPanelProps> = ({ graphics, graphic, onSelect, onGraphicChange }) => {
+export const PlacementPanel: React.FC<PlacementPanelProps> = ({ graphics, graphic, garment, onSelect, onGraphicChange }) => {
   if (!graphic) {
     return (
       <div className="text-[11px] text-zinc-500 bg-zinc-900/60 border border-zinc-800 rounded-xl p-3 text-center">
@@ -74,7 +77,8 @@ export const PlacementPanel: React.FC<PlacementPanelProps> = ({ graphics, graphi
   const applyPreset = (id: PlacementPresetId) => {
     const p = PLACEMENT_PRESETS.find((x) => x.id === id);
     if (!p) return;
-    onGraphicChange({ preset: id, side: p.side, scale: p.defaultScale, x: p.defaultX, y: p.defaultY, rotation: 0 });
+    const pos = getPresetDefaultPosition(id, garment);
+    onGraphicChange({ preset: id, side: p.side, scale: p.defaultScale, x: pos.x, y: pos.y, rotation: 0 });
   };
   const rotation = graphic.rotation > 180 ? graphic.rotation - 360 : graphic.rotation;
 
@@ -131,7 +135,10 @@ export const PlacementPanel: React.FC<PlacementPanelProps> = ({ graphics, graphi
 
       <div className="flex justify-end pt-1 border-t border-zinc-800/70">
         <button
-          onClick={() => set({ x: 0, y: 0, rotation: 0 })}
+          onClick={() => {
+            const center = getSideCenterPosition(graphic.side, garment);
+            set({ x: center.x, y: center.y, rotation: 0 });
+          }}
           title="Kembalikan posisi dan putaran ke tengah"
           className="px-3 h-8 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-[10px] text-zinc-400 hover:text-white touch-manipulation"
         >

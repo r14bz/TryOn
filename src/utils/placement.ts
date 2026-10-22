@@ -1,4 +1,6 @@
-import type { GarmentModel, PlacementSide } from '../types/sablon';
+import type { GarmentModel, PlacementPresetId, PlacementSide } from '../types/sablon';
+import { PLACEMENT_PRESETS } from '../data/fabricData';
+import { HOODIE_SLEEVE_CENTER } from '../data/hoodieConfig';
 
 /**
  * Satu sumber kebenaran untuk posisi & ukuran sablon di tampilan 2D DAN 3D.
@@ -114,4 +116,25 @@ export function getModelPlacement(side: PlacementSide, garment: GarmentModel = '
     rangeX: range * widthToModel,
     rangeY: range * heightToModel
   };
+}
+
+/**
+ * Posisi default sebuah preset untuk model pakaian tertentu.
+ * Kaos: defaultX/defaultY dari PLACEMENT_PRESETS (perilaku produksi kaos, tidak berubah).
+ * Hoodie lengan: HOODIE_SLEEVE_CENTER, hasil kalibrasi khusus hoodie.
+ */
+export function getPresetDefaultPosition(presetId: PlacementPresetId, garment: GarmentModel): { x: number; y: number } {
+  const preset = PLACEMENT_PRESETS.find((p) => p.id === presetId) ?? PLACEMENT_PRESETS[0];
+  if (garment === 'hoodie' && isSleeveSide(preset.side)) {
+    return { ...HOODIE_SLEEVE_CENTER[preset.side] };
+  }
+  return { x: preset.defaultX, y: preset.defaultY };
+}
+
+/** Posisi "tengah" sebuah sisi untuk tombol reset. Hoodie lengan: HOODIE_SLEEVE_CENTER, lainnya (0, 0). */
+export function getSideCenterPosition(side: PlacementSide, garment: GarmentModel): { x: number; y: number } {
+  if (garment === 'hoodie' && isSleeveSide(side)) {
+    return { ...HOODIE_SLEEVE_CENTER[side] };
+  }
+  return { x: 0, y: 0 };
 }
