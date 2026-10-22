@@ -185,7 +185,7 @@ if manifest.exists():
     permission = '<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />'
     if permission not in manifest_text:
         import re
-        match = re.search(r"<manifest\\b[^>]*>", manifest_text)
+        match = re.search(r"<manifest\b[^>]*>", manifest_text)
         if match is None:
             raise SystemExit("Tag pembuka <manifest> tidak ditemukan.")
         insert_at = match.end()
