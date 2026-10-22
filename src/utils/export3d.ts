@@ -160,7 +160,7 @@ export async function createShirt3DExporter(
     const fovHalfRad = ((35 / 2) * Math.PI) / 180; // setengah FOV vertikal
     // Jarak kamera agar seluruh bounding sphere muat di dalam frustum persegi
     let cameraDistance = sphere.radius / Math.sin(fovHalfRad);
-    cameraDistance = Math.max(1.35, Math.min(2.6, cameraDistance * 1.12));
+    cameraDistance = Math.max(1.35, Math.min(2.6, cameraDistance * 1.04));
     camera.position.set(0, 0, cameraDistance);
 
     // Tekstur sablon: lebih tajam untuk gambar besar
