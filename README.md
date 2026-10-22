@@ -15,7 +15,7 @@ Live: https://try-d.vercel.app
 - **Preset penempatan** sesuai ukuran cetak nyata (depan A3, punggung A3, lengan kiri/kanan) plus mode custom drag & resize.
 - **Bahan kain:** Cotton Combed 30s dan 24s, Heavyweight 16s, Cotton Bamboo, Slub Cotton / Pique Vintage, lengkap dengan inspeksi tekstur.
 - **Teknik sablon:** DTF, Plastisol HD, Rubber GL, Discharge, dan Bordir.
-- **Pilihan warna** (16 warna) dan **ukuran** S sampai XXL.
+- **Pilihan warna** (26 warna, termasuk kategori warna cerah standar) dan **ukuran** S sampai XXL.
 - **Estimasi harga** berdasarkan kain, teknik, ukuran, dan jumlah pesanan.
 - **Export:** PNG, JPG, PDF, PSD, dan SVG. Pilihan hasil: mockup, desain saja, atau render 3D.
 - **PWA:** bisa di-install di HP atau desktop.
