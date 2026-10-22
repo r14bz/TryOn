@@ -157,10 +157,10 @@ export async function createShirt3DExporter(
     gltf.scene.updateMatrixWorld(true);
     const bounds = new THREE.Box3().setFromObject(gltf.scene);
     const sphere = bounds.getBoundingSphere(new THREE.Sphere());
-    const fovHalfRad = (35 * Math.PI) / 180;
+    const fovHalfRad = ((35 / 2) * Math.PI) / 180; // setengah FOV vertikal
     // Jarak kamera agar seluruh bounding sphere muat di dalam frustum persegi
     let cameraDistance = sphere.radius / Math.sin(fovHalfRad);
-    cameraDistance = Math.max(1.35, Math.min(2.6, cameraDistance * 1.1));
+    cameraDistance = Math.max(1.35, Math.min(2.6, cameraDistance * 1.12));
     camera.position.set(0, 0, cameraDistance);
 
     // Tekstur sablon: lebih tajam untuk gambar besar
