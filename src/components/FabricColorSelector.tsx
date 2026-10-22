@@ -26,7 +26,7 @@ export const FabricColorSelector: React.FC<FabricColorSelectorProps> = ({
   onInspectDetail,
   show = 'color'
 }) => {
-  const [activeCategory, setActiveCategory] = useState<'all' | 'monochrome' | 'earth' | 'streetwear' | 'pastel'>('all');
+  const [activeCategory, setActiveCategory] = useState<'all' | 'monochrome' | 'earth' | 'streetwear' | 'pastel' | 'bright'>('all');
   const [customHex, setCustomHex] = useState(selectedColor.hex);
 
   const filteredColors = activeCategory === 'all'
@@ -67,7 +67,8 @@ export const FabricColorSelector: React.FC<FabricColorSelectorProps> = ({
             { id: 'monochrome', label: 'Basic & Mono' },
             { id: 'earth', label: 'Earth Tone' },
             { id: 'streetwear', label: 'Distro' },
-            { id: 'pastel', label: 'Pastel' }
+            { id: 'pastel', label: 'Pastel' },
+            { id: 'bright', label: 'Cerah' }
           ].map(tab => (
             <button
               key={tab.id}

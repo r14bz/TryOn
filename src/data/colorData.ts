@@ -98,7 +98,42 @@ export const TSHIRT_COLORS: TshirtColor[] = [
     dark: true
   },
 
-  // Pastel
+  // Bright Colors (Cerah & Neon)
+  {
+    id: 'neon_yellow',
+    name: 'Neon Yellow',
+    hex: '#FFFF00',
+    category: 'bright',
+    dark: false
+  },
+  {
+    id: 'neon_orange',
+    name: 'Neon Orange',
+    hex: '#FF6600',
+    category: 'bright',
+    dark: false
+  },
+  {
+    id: 'neon_pink',
+    name: 'Neon Pink',
+    hex: '#FF1493',
+    category: 'bright',
+    dark: false
+  },
+  {
+    id: 'neon_green',
+    name: 'Neon Green',
+    hex: '#39FF14',
+    category: 'bright',
+    dark: false
+  },
+  {
+    id: 'neon_cyan',
+    name: 'Neon Cyan',
+    hex: '#00FFFF',
+    category: 'bright',
+    dark: false
+  },
   {
     id: 'muted_lilac',
     name: 'Muted Lilac (Ungu Pastel)',

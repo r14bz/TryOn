@@ -25,7 +25,7 @@ export interface TshirtColor {
   id: string;
   name: string;
   hex: string;
-  category: 'monochrome' | 'earth' | 'streetwear' | 'pastel';
+  category: 'monochrome' | 'earth' | 'streetwear' | 'pastel' | 'bright';
   dark: boolean;
 }
 
