@@ -67,6 +67,22 @@ export interface PlacementPreset {
 
 export const MAX_GRAPHICS = 6;
 
+/** Pengaturan teks untuk layer berjenis teks (gambar hasil render dari teks ini). */
+export interface TextSpec {
+  content: string;
+  /** id font di data/textFonts.ts */
+  fontId: string;
+  /** warna isi, hex #RRGGBB */
+  color: string;
+  /** warna garis tepi; null = tanpa garis tepi */
+  outlineColor: string | null;
+  /** tebal garis tepi, persen dari tinggi font (0-12) */
+  outlineWidth: number;
+  /** jarak antar huruf, persen dari tinggi font (0-30) */
+  letterSpacing: number;
+  align: 'left' | 'center' | 'right';
+}
+
 export interface GraphicSettings {
   id: string;
   visible: boolean;
@@ -81,6 +97,8 @@ export interface GraphicSettings {
   blendMode: 'normal' | 'multiply' | 'hard-light' | 'overlay';
   colorFilter: 'original' | 'monochrome_white' | 'monochrome_black' | 'vintage_warm';
   preset: PlacementPresetId;
+  /** ada jika layer ini berasal dari teks (bisa diedit ulang) */
+  text?: TextSpec;
 }
 
 export type StudioBgColor = 'white' | 'black';

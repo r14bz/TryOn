@@ -8,6 +8,7 @@ import {
   MAX_GRAPHICS, GarmentModel } from '../types/sablon';
 import { getCachedImage, getFilteredSource } from './fabricRenderer';
 import { getModelPlacement } from './placement';
+import { HOODIE_SLEEVE } from '../data/hoodieConfig';
 import { computeAxisVisibility, Vec3 } from './printVisibility';
 
 /**
@@ -72,25 +73,8 @@ const HOODIE_PANEL_PERMISSION: Record<number, [number, number, number, number]> 
   [HOODIE_PANEL.SLEEVE_RIGHT]: [0, 0, 0, 1]
 };
 
-/**
- * Lengan hoodie dicetak dengan pemetaan silinder (sablon melengkung mengikuti lengan, tidak melar).
- * Semua nilai dalam ruang mesh hoodie yang sudah dinormalisasi (tinggi 0.82), hasil pengukuran
- * garis tengah lengan pada GLB hoodie. Ganti GLB => ukur ulang.
- */
-const HOODIE_SLEEVE = {
-  /** radius lengan atas, dipakai mengubah sudut keliling menjadi jarak busur */
-  armRadius: 0.093,
-  /** jarak dari titik bahu ke pusat sablon saat slider Atas/Bawah = 0 */
-  alongStart: 0.17,
-  /** geser Kiri/Kanan -50..50% memutar sablon mengelilingi lengan sebesar +/- sudut ini (rad) */
-  maxAngle: 1.2,
-  /** point = titik garis tengah dekat bahu, axis = arah bahu->manset, facing = arah sablon menghadap (depan-atas-luar) */
-  left: { point: [0.299, 0.173, -0.036], axis: [0.9007, -0.4339, -0.021], facing: [0.2269, 0.4288, 0.8744] },
-  right: { point: [-0.299, 0.173, -0.036], axis: [-0.9007, -0.4339, -0.021], facing: [-0.2269, 0.4288, 0.8744] }
-} as const;
-
 /** Sudut kamera (rad) saat melihat lengan hoodie dari samping-depan-atas agar lengan terlihat utuh. */
-export const HOODIE_SLEEVE_VIEW = { pitch: 0.443, yaw: 0.254 } as const;
+export const HOODIE_SLEEVE_VIEW = { pitch: 0.443, yaw: 0.55 } as const;
 
 /** Batas jahitan lengan: sablon lengan tidak boleh melewati lingkar lengan ke badan. */
 const SEAM_START = 0.165;

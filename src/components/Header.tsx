@@ -1,22 +1,18 @@
 import React, { useState } from 'react';
-import { Download, Calculator, Smartphone } from 'lucide-react';
+import { Download, Calculator, Smartphone, Layers } from 'lucide-react';
 import { usePwaInstall } from '../utils/pwaInstall';
 import logo from '../assets/logo-try-d.png';
 
 interface HeaderProps {
   onOpenExport: () => void;
   onOpenQuote: () => void;
-  onOpenTextureModal: () => void;
-  activeSidebarTab: 'graphic' | 'fabric' | 'technique';
-  onSelectSidebarTab: (tab: 'graphic' | 'fabric' | 'technique') => void;
+  onOpenProduction: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   onOpenExport,
   onOpenQuote,
-  onOpenTextureModal,
-  activeSidebarTab,
-  onSelectSidebarTab
+  onOpenProduction
 }) => {
   const { mode: installMode, install } = usePwaInstall();
   const [showIosHint, setShowIosHint] = useState(false);
@@ -30,42 +26,18 @@ export const Header: React.FC<HeaderProps> = ({
         </a>
       </div>
 
-      {/* Zone 2: 4-6 clean text navigation links (hidden on mobile, present on desktop) */}
-      <nav className="hidden lg:flex items-center gap-6 text-sm font-medium text-zinc-400">
-        <button
-          onClick={() => onSelectSidebarTab('graphic')}
-          className={`transition-colors whitespace-nowrap ${
-            activeSidebarTab === 'graphic' ? 'text-white font-semibold' : 'hover:text-zinc-200'
-          }`}
-        >
-          Desain Sablon
-        </button>
-        <button
-          onClick={() => onSelectSidebarTab('fabric')}
-          className={`transition-colors whitespace-nowrap ${
-            activeSidebarTab === 'fabric' ? 'text-white font-semibold' : 'hover:text-zinc-200'
-          }`}
-        >
-          Warna &amp; Bahan
-        </button>
-        <button
-          onClick={() => onSelectSidebarTab('technique')}
-          className={`transition-colors whitespace-nowrap ${
-            activeSidebarTab === 'technique' ? 'text-white font-semibold' : 'hover:text-zinc-200'
-          }`}
-        >
-          Teknik Sablon
-        </button>
-        <button
-          onClick={onOpenTextureModal}
-          className="hover:text-zinc-200 transition-colors whitespace-nowrap"
-        >
-          Inspeksi Serat
-        </button>
-      </nav>
-
       {/* Zone 3: aksi utama (ukuran kecil agar muat di HP) */}
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+        <button
+          onClick={onOpenProduction}
+          title="Teknik sablon, bahan & ukuran"
+          aria-label="Teknik sablon"
+          className="h-8 w-8 sm:w-auto sm:px-3 text-[11px] sm:text-xs font-medium text-zinc-300 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition-colors whitespace-nowrap flex items-center justify-center gap-1.5 touch-manipulation"
+        >
+          <Layers className="w-3.5 h-3.5 text-brand shrink-0" />
+          <span className="hidden sm:inline">Teknik</span>
+        </button>
+
         <button
           onClick={onOpenQuote}
           title="Rincian & Biaya Sablon"
@@ -73,7 +45,7 @@ export const Header: React.FC<HeaderProps> = ({
           className="h-8 w-7 sm:w-auto sm:min-w-8 px-0 sm:px-3 text-[11px] sm:text-xs font-medium text-zinc-300 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition-colors whitespace-nowrap flex items-center justify-center gap-1.5 touch-manipulation"
         >
           <Calculator className="w-3.5 h-3.5 text-brand shrink-0" />
-          <span className="hidden sm:inline">Hitung Biaya</span>
+          <span className="hidden sm:inline">Biaya</span>
         </button>
 
         <button
@@ -81,9 +53,7 @@ export const Header: React.FC<HeaderProps> = ({
           className="h-8 px-2 sm:px-3 text-[11px] sm:text-xs font-semibold text-zinc-950 bg-brand hover:bg-brand/85 rounded-lg shadow-sm active:scale-95 transition-all whitespace-nowrap flex items-center gap-1 touch-manipulation"
         >
           <Download className="w-3.5 h-3.5 shrink-0" />
-          <span>
-            Simpan<span className="hidden sm:inline"> Gambar</span>
-          </span>
+          <span>Simpan</span>
         </button>
 
         {installMode !== 'none' && (

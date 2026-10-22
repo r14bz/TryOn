@@ -1,4 +1,5 @@
-import { FabricInfo, TshirtColor, GraphicSettings, PrintTechniqueInfo, StudioBgColor } from '../types/sablon';
+import { FabricInfo, TshirtColor, GraphicSettings, PrintTechniqueInfo, StudioBgColor, GarmentModel } from '../types/sablon';
+import { HOODIE_PHOTOS, HOODIE_MASKS, HOODIE_REGIONS, getHoodiePlacement2D } from './hoodie2d';
 import blackFrontUrl from '../assets/images/tshirt_black_front_1790758501022.jpg';
 import blackBackUrl from '../assets/images/tshirt_black_back_1790758517353.jpg';
 import whiteFrontUrl from '../assets/images/tshirt_white_front_1790758537680.jpg';
@@ -51,6 +52,10 @@ export interface ShirtRenderAssets {
   baseImg: HTMLImageElement;
   mask: Uint8Array; // 0..255 garment coverage, width*height
   fold: FoldMaps;
+  /** model pakaian pemilik aset ini; kosong = kaos (perilaku asli) */
+  garment?: GarmentModel;
+  /** area yang boleh dicetak per sisi (hanya hoodie): badan, lengan kiri pemakai, lengan kanan pemakai */
+  regions?: { body: Uint8Array; left: Uint8Array; right: Uint8Array };
 }
 
 /** Cloth-fold information derived from the photo, used to make prints follow the fabric. */
@@ -77,6 +82,31 @@ async function getMaskAlpha(url: string, width: number, height: number): Promise
   const out = new Uint8Array(width * height);
   for (let i = 0; i < out.length; i++) out[i] = data[i * 4];
   alphaCache.set(key, out);
+  return out;
+}
+
+const regionCache = new Map<string, { body: Uint8Array; left: Uint8Array; right: Uint8Array }>();
+
+/** Memuat peta area cetak hoodie (R = badan, G = lengan kiri pemakai, B = lengan kanan pemakai). */
+async function getRegionMaps(url: string, width: number, height: number) {
+  const key = `${url}_${width}_${height}`;
+  const hit = regionCache.get(key);
+  if (hit) return hit;
+  const img = await getCachedImage(url);
+  const c = document.createElement('canvas');
+  c.width = width;
+  c.height = height;
+  const cx = c.getContext('2d', { willReadFrequently: true })!;
+  cx.drawImage(img, 0, 0, width, height);
+  const data = cx.getImageData(0, 0, width, height).data;
+  const n = width * height;
+  const out = { body: new Uint8Array(n), left: new Uint8Array(n), right: new Uint8Array(n) };
+  for (let i = 0; i < n; i++) {
+    out.body[i] = data[i * 4];
+    out.left[i] = data[i * 4 + 1];
+    out.right[i] = data[i * 4 + 2];
+  }
+  regionCache.set(key, out);
   return out;
 }
 
@@ -180,8 +210,25 @@ export async function prepareShirtAssets(
   side: ShirtSide,
   useBlackPhoto: boolean,
   width: number,
-  height: number
+  height: number,
+  garment: GarmentModel = 'shirt'
 ): Promise<ShirtRenderAssets> {
+  if (garment === 'hoodie') {
+    const photoKey = `${useBlackPhoto ? 'black' : 'white'}_${side}` as keyof typeof HOODIE_PHOTOS;
+    const [baseImg, mask, regions] = await Promise.all([
+      getCachedImage(HOODIE_PHOTOS[photoKey]),
+      getMaskAlpha(HOODIE_MASKS[side], width, height),
+      getRegionMaps(HOODIE_REGIONS[side], width, height)
+    ]);
+    const foldKey = `hoodie_${photoKey}_${width}_${height}`;
+    let fold = foldCache.get(foldKey);
+    if (!fold) {
+      fold = buildFoldMaps(baseImg, mask, width, height);
+      foldCache.set(foldKey, fold);
+    }
+    return { baseImg, mask, fold, garment: 'hoodie', regions };
+  }
+
   const key = `${useBlackPhoto ? 'black' : 'white'}_${side}` as keyof typeof TSHIRT_ASSETS;
   const [baseImg, mask] = await Promise.all([
     getCachedImage(TSHIRT_ASSETS[key]),
@@ -559,10 +606,11 @@ function drawWarpedPrint(
   layer.width = width;
   layer.height = height;
   const lctx = layer.getContext('2d', { willReadFrequently: true })!;
-  renderPrintGraphic(lctx, width, height, graphicImg, graphic, technique, fabric, color, s);
+  const garment: GarmentModel = assets.garment ?? 'shirt';
+  renderPrintGraphic(lctx, width, height, graphicImg, graphic, technique, fabric, color, s, garment);
 
   const aspect = graphicImg.height / (graphicImg.width || 1);
-  const { cx, cy, printW, printH } = getPrintPlacement(width, height, aspect, graphic);
+  const { cx, cy, printW, printH } = getPrintPlacement(width, height, aspect, graphic, garment);
   const r = Math.ceil(Math.hypot(printW, printH) / 2 + 12 * s);
   const x0 = Math.max(0, Math.floor(cx - r));
   const y0 = Math.max(0, Math.floor(cy - r));
@@ -576,6 +624,14 @@ function drawWarpedPrint(
   const out = new ImageData(bw, bh);
   const od = out.data;
   const { mask, fold } = assets;
+  // Hoodie: sablon hanya tampak pada panel kainnya (bukan tudung, tali, atau rib)
+  const region = assets.regions
+    ? graphic.side === 'sleeve_left'
+      ? assets.regions.left
+      : graphic.side === 'sleeve_right'
+        ? assets.regions.right
+        : assets.regions.body
+    : null;
   const strength = printShadeStrength(technique);
   const exact = s === 1;
 
@@ -589,6 +645,7 @@ function drawWarpedPrint(
       if (exact) {
         const gi = (y0 + j) * baseW + (x0 + i);
         m = mask[gi];
+        if (region && region[gi] < m) m = region[gi];
         if (m === 0) continue;
         ddx = fold.dx[gi] / 256;
         ddy = fold.dy[gi] / 256;
@@ -597,6 +654,7 @@ function drawWarpedPrint(
         const bx = (x0 + i + 0.5) / s - 0.5;
         const by = (y0 + j + 0.5) / s - 0.5;
         m = bilerp(mask, baseW, baseH, bx, by);
+        if (region) m = Math.min(m, bilerp(region, baseW, baseH, bx, by));
         if (m < 1) continue;
         ddx = (bilerp(fold.dx, baseW, baseH, bx, by) / 256) * s;
         ddy = (bilerp(fold.dy, baseW, baseH, bx, by) / 256) * s;
@@ -658,9 +716,14 @@ export function getPrintPlacement(
   width: number,
   height: number,
   aspect: number,
-  graphic: GraphicSettings
+  graphic: GraphicSettings,
+  garment: GarmentModel = 'shirt'
 ) {
   const isSleeve = graphic.side === 'sleeve_left' || graphic.side === 'sleeve_right';
+  if (garment === 'hoodie') {
+    const h = getHoodiePlacement2D(width, height, aspect, graphic);
+    return { ...h, isSleeve, range: isSleeve ? SLEEVE_DRAG_RANGE : BODY_DRAG_RANGE };
+  }
   // On the front photo the wearer's left sleeve is on the image's right
   const dir = graphic.side === 'sleeve_left' ? 1 : -1;
   const range = isSleeve ? SLEEVE_DRAG_RANGE : BODY_DRAG_RANGE;
@@ -689,12 +752,13 @@ export function hitTestLayer(
   py: number,
   width: number,
   height: number,
-  layers: PrintLayer[]
+  layers: PrintLayer[],
+  garment: GarmentModel = 'shirt'
 ): string | null {
   for (let i = layers.length - 1; i >= 0; i--) {
     const { graphic, img } = layers[i];
     const aspect = img.height / (img.width || 1);
-    const p = getPrintPlacement(width, height, aspect, graphic);
+    const p = getPrintPlacement(width, height, aspect, graphic, garment);
     const theta = ((graphic.rotation + p.extraRot) * Math.PI) / 180;
     const dx = px - p.cx;
     const dy = py - p.cy;
@@ -720,13 +784,14 @@ export function renderPrintGraphic(
   technique: PrintTechniqueInfo,
   fabric: FabricInfo,
   color: TshirtColor,
-  px = 1
+  px = 1,
+  garment: GarmentModel = 'shirt'
 ) {
   ctx.save();
 
   const aspect = graphicImg.height / (graphicImg.width || 1);
   const { cx: centerX, cy: centerY, printW: printWidth, printH: printHeight, extraRot } =
-    getPrintPlacement(width, height, aspect, graphic);
+    getPrintPlacement(width, height, aspect, graphic, garment);
 
   ctx.translate(centerX, centerY);
   ctx.rotate(((graphic.rotation + extraRot) * Math.PI) / 180);

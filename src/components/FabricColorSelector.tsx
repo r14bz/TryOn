@@ -12,6 +12,8 @@ interface FabricColorSelectorProps {
   onColorSelect: (color: TshirtColor) => void;
   onSizeSelect: (size: GarmentSize) => void;
   onInspectDetail: (fabric: FabricInfo) => void;
+  /** 'color' = hanya warna model; 'material' = jenis bahan + ukuran */
+  show?: 'color' | 'material';
 }
 
 export const FabricColorSelector: React.FC<FabricColorSelectorProps> = ({
@@ -21,7 +23,8 @@ export const FabricColorSelector: React.FC<FabricColorSelectorProps> = ({
   onFabricSelect,
   onColorSelect,
   onSizeSelect,
-  onInspectDetail
+  onInspectDetail,
+  show = 'color'
 }) => {
   const [activeCategory, setActiveCategory] = useState<'all' | 'monochrome' | 'earth' | 'streetwear' | 'pastel'>('all');
   const [customHex, setCustomHex] = useState(selectedColor.hex);
@@ -46,10 +49,11 @@ export const FabricColorSelector: React.FC<FabricColorSelectorProps> = ({
   return (
     <div className="flex flex-col gap-6 text-zinc-200">
       {/* 1. Color Selection Section */}
+      {show === 'color' && (
       <div>
         <div className="flex items-center justify-between mb-2">
           <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-            Warna Kaos Polos
+            Warna Model
           </label>
           <span className="text-xs text-brand font-medium">
             {selectedColor.name}
@@ -127,8 +131,10 @@ export const FabricColorSelector: React.FC<FabricColorSelectorProps> = ({
           </div>
         </div>
       </div>
+      )}
 
       {/* 2. Fabric Material Selection Section */}
+      {show === 'material' && (
       <div>
         <div className="flex items-center justify-between mb-2">
           <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
@@ -231,12 +237,14 @@ export const FabricColorSelector: React.FC<FabricColorSelectorProps> = ({
           })}
         </div>
       </div>
+      )}
 
       {/* 3. Garment Size Selection */}
+      {show === 'material' && (
       <div className="pt-2 border-t border-zinc-850">
         <div className="flex items-center justify-between mb-2">
           <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-            Ukuran Kaos (Size Chart)
+            Ukuran (Size Chart)
           </label>
           <span className="text-[11px] font-mono text-zinc-400">
             {selectedSize.chestWidthCm} cm × {selectedSize.bodyLengthCm} cm
@@ -263,6 +271,7 @@ export const FabricColorSelector: React.FC<FabricColorSelectorProps> = ({
           })}
         </div>
       </div>
+      )}
     </div>
   );
 };

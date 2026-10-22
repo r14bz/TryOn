@@ -1,214 +1,130 @@
 import React from 'react';
-import { 
-  Box, 
-  Image, 
-  Sun, 
-  Moon, 
-  Maximize2, 
-  SlidersHorizontal
-} from 'lucide-react';
-import { PlacementSide, StudioBgColor, GarmentSize } from '../types/sablon';
+import { Box, Image, Sun, Moon, Compass, ChevronDown } from 'lucide-react';
+import { PlacementSide, StudioBgColor, GarmentModel } from '../types/sablon';
+import { GARMENT_MODELS } from '../data/garmentModels';
 
 interface StudioToolbarProps {
   studioMode: '3d' | '2d';
   onModeChange: (mode: '3d' | '2d') => void;
+  garmentModel: GarmentModel;
+  onGarmentModelChange: (model: GarmentModel) => void;
   currentSide: PlacementSide;
   onSideChange: (side: PlacementSide) => void;
+  /** navigasi sisi (Depan/Lengan/Belakang) ditampilkan atau disembunyikan */
+  showSideNav: boolean;
+  onToggleSideNav: () => void;
   studioBgColor: StudioBgColor;
   onStudioBgChange: (bg: StudioBgColor) => void;
-  garmentSize: GarmentSize;
-  printWidthCm: string;
-  printHeightCm: string;
-  isCustomizerExpanded: boolean;
-  onToggleCustomizer: () => void;
 }
 
+const SIDES: Array<{ id: PlacementSide; label: string }> = [
+  { id: 'front', label: 'Depan' },
+  { id: 'sleeve_left', label: 'Lengan Kiri' },
+  { id: 'back', label: 'Belakang' },
+  { id: 'sleeve_right', label: 'Lengan Kanan' }
+];
+
+/**
+ * Toolbar kanvas. Baris 1: mode 3D/2D, dropdown model, tombol navigasi sisi, tema gelap/terang.
+ * Baris 2 (bisa disembunyikan): navigasi sisi yang mengikuti putaran model.
+ */
 export const StudioToolbar: React.FC<StudioToolbarProps> = ({
   studioMode,
   onModeChange,
+  garmentModel,
+  onGarmentModelChange,
   currentSide,
   onSideChange,
+  showSideNav,
+  onToggleSideNav,
   studioBgColor,
-  onStudioBgChange,
-  garmentSize,
-  printWidthCm,
-  printHeightCm,
-  isCustomizerExpanded,
-  onToggleCustomizer
+  onStudioBgChange
 }) => {
-  const isDarkStudio = studioBgColor === 'black';
+  const dark = studioBgColor === 'black';
+  const box = dark ? 'bg-zinc-900/90 border-zinc-800 text-zinc-300' : 'bg-white/90 border-zinc-200 text-zinc-700';
+  const idle = dark ? 'hover:text-brand text-zinc-400' : 'hover:text-zinc-900 text-zinc-600';
 
   return (
-    <div className="w-full z-20 pointer-events-none p-1.5 sm:p-3">
-      {/* Container: 2-tier on mobile, single flex row on desktop to PREVENT ANY OVERLAP */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-1.5 sm:gap-2 max-w-full">
-        
-        {/* Row 1 (Mobile) / Left Group (Desktop): Mode Switcher + Background & Panel Toggle on mobile */}
-        <div className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-2 pointer-events-auto">
-          {/* 3D vs 2D Mode Toggle */}
-          <div className={`flex items-center p-0.5 rounded-xl border shadow-sm backdrop-blur text-xs font-semibold ${
-            isDarkStudio 
-              ? 'bg-zinc-900/90 border-zinc-800 text-zinc-300' 
-              : 'bg-white/90 border-zinc-200 text-zinc-700'
-          }`}>
+    <div className="w-full z-20 p-1.5 sm:p-2 flex flex-col gap-1.5">
+      <div className="flex items-center gap-1.5">
+        {/* 3D / 2D */}
+        <div className={`flex items-center p-0.5 rounded-xl border shadow-sm backdrop-blur text-xs font-semibold ${box}`}>
+          {([['3d', Box, '3D'], ['2d', Image, '2D']] as const).map(([mode, Icon, label]) => (
             <button
-              onClick={() => onModeChange('3d')}
-              className={`min-h-[32px] px-2.5 sm:px-3 rounded-lg flex items-center gap-1.5 transition-all touch-manipulation ${
-                studioMode === '3d'
-                  ? 'bg-brand text-zinc-950 font-bold shadow-sm'
-                  : isDarkStudio ? 'hover:text-brand text-zinc-400' : 'hover:text-zinc-900 text-zinc-600'
+              key={mode}
+              onClick={() => onModeChange(mode)}
+              aria-pressed={studioMode === mode}
+              className={`min-h-[32px] px-2.5 rounded-lg flex items-center gap-1.5 transition-all touch-manipulation ${
+                studioMode === mode ? 'bg-brand text-zinc-950 font-bold shadow-sm' : idle
               }`}
             >
-              <Box className="w-3.5 h-3.5 shrink-0" />
-              <span>3D (360°)</span>
+              <Icon className="w-3.5 h-3.5 shrink-0" />
+              <span>{label}</span>
             </button>
-            <button
-              onClick={() => onModeChange('2d')}
-              className={`min-h-[32px] px-2.5 sm:px-3 rounded-lg flex items-center gap-1.5 transition-all touch-manipulation ${
-                studioMode === '2d'
-                  ? 'bg-brand text-zinc-950 font-bold shadow-sm'
-                  : isDarkStudio ? 'hover:text-brand text-zinc-400' : 'hover:text-zinc-900 text-zinc-600'
-              }`}
-            >
-              <Image className="w-3.5 h-3.5 shrink-0" />
-              <span>2D Foto</span>
-            </button>
-          </div>
-
-          {/* Mobile-only right cluster: Background theme */}
-          <div className="flex sm:hidden items-center gap-1.5 pointer-events-auto">
-            <button
-              onClick={() => onStudioBgChange(isDarkStudio ? 'white' : 'black')}
-              title={`Ubah background studio ke ${isDarkStudio ? 'Putih' : 'Hitam'}`}
-              className={`h-8 px-2 rounded-lg border text-xs flex items-center gap-1 shadow-sm transition-all ${
-                isDarkStudio 
-                  ? 'bg-zinc-900/90 border-zinc-800 text-zinc-200' 
-                  : 'bg-white/90 border-zinc-200 text-zinc-800'
-              }`}
-            >
-              {isDarkStudio ? (
-                <Moon className="w-3.5 h-3.5 text-brand" />
-              ) : (
-                <Sun className="w-3.5 h-3.5 text-zinc-900" />
-              )}
-            </button>
-          </div>
+          ))}
         </div>
 
-        {/* Row 2 (Mobile) / Center Group (Desktop): Angle / Side View Switcher */}
-        <div className="w-full sm:w-auto flex items-center justify-center pointer-events-auto overflow-x-auto py-0.5 scrollbar-none">
-          <div className={`flex items-center p-0.5 rounded-xl border shadow-sm backdrop-blur text-xs font-semibold shrink-0 ${
-            isDarkStudio 
-              ? 'bg-zinc-900/90 border-zinc-800 text-zinc-300' 
-              : 'bg-white/90 border-zinc-200 text-zinc-700'
-          }`}>
-            <button
-              onClick={() => onSideChange('front')}
-              className={`min-h-[30px] sm:min-h-[32px] px-2.5 sm:px-3 rounded-lg transition-all touch-manipulation whitespace-nowrap ${
-                currentSide === 'front'
-                  ? isDarkStudio ? 'bg-zinc-800 text-brand font-bold shadow-sm' : 'bg-zinc-900 text-white font-bold shadow-sm'
-                  : isDarkStudio ? 'hover:text-brand' : 'hover:text-zinc-900'
-              }`}
-            >
-              Depan
-            </button>
-
-                          <button
-                onClick={() => onSideChange('sleeve_left')}
-                className={`min-h-[30px] sm:min-h-[32px] px-2.5 sm:px-3 rounded-lg transition-all touch-manipulation whitespace-nowrap ${
-                  currentSide === 'sleeve_left'
-                    ? isDarkStudio ? 'bg-zinc-800 text-brand font-bold shadow-sm' : 'bg-zinc-900 text-white font-bold shadow-sm'
-                    : isDarkStudio ? 'hover:text-brand' : 'hover:text-zinc-900'
-                }`}
-              >
-                Lengan Kiri
-              </button>
-
-            <button
-              onClick={() => onSideChange('back')}
-              className={`min-h-[30px] sm:min-h-[32px] px-2.5 sm:px-3 rounded-lg transition-all touch-manipulation whitespace-nowrap ${
-                currentSide === 'back'
-                  ? isDarkStudio ? 'bg-zinc-800 text-brand font-bold shadow-sm' : 'bg-zinc-900 text-white font-bold shadow-sm'
-                  : isDarkStudio ? 'hover:text-brand' : 'hover:text-zinc-900'
-              }`}
-            >
-              Belakang
-            </button>
-
-                          <button
-                onClick={() => onSideChange('sleeve_right')}
-                className={`min-h-[30px] sm:min-h-[32px] px-2.5 sm:px-3 rounded-lg transition-all touch-manipulation whitespace-nowrap ${
-                  currentSide === 'sleeve_right'
-                    ? isDarkStudio ? 'bg-zinc-800 text-brand font-bold shadow-sm' : 'bg-zinc-900 text-white font-bold shadow-sm'
-                    : isDarkStudio ? 'hover:text-brand' : 'hover:text-zinc-900'
-                }`}
-              >
-                Lengan Kanan
-              </button>
-          </div>
-        </div>
-
-        {/* Right Group (Desktop): Background toggle + Dimension Metric + Expand Panel button */}
-        <div className="hidden sm:flex items-center gap-2 pointer-events-auto">
-          {/* Dimension Metric */}
-          <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-mono shadow-sm border ${
-            isDarkStudio ? 'bg-zinc-900/90 border-zinc-800 text-zinc-300' : 'bg-white/90 border-zinc-200 text-zinc-700'
-          }`}>
-            <span className={`font-bold ${isDarkStudio ? 'text-brand' : 'text-zinc-900'}`}>{printWidthCm}×{printHeightCm} cm</span>
-            <span className="text-zinc-400">·</span>
-            <span>{garmentSize.size}</span>
-          </div>
-
-          {/* Background Toggle */}
-          <button
-            onClick={() => onStudioBgChange(isDarkStudio ? 'white' : 'black')}
-            title={`Ubah background studio ke ${isDarkStudio ? 'Putih' : 'Hitam'}`}
-            className={`min-h-[32px] px-2.5 rounded-xl border flex items-center gap-1.5 text-xs font-semibold shadow-sm transition-all touch-manipulation ${
-              isDarkStudio 
-                ? 'bg-zinc-900/90 text-white border-zinc-800 hover:bg-zinc-800' 
-                : 'bg-white/90 text-zinc-900 border-zinc-200 hover:bg-zinc-100'
-            }`}
+        {/* Dropdown model pakaian */}
+        <div className={`relative flex items-center rounded-xl border shadow-sm backdrop-blur ${box}`}>
+          <select
+            value={garmentModel}
+            onChange={(e) => onGarmentModelChange(e.target.value as GarmentModel)}
+            aria-label="Pilih model pakaian"
+            className="appearance-none bg-transparent min-h-[36px] pl-3 pr-7 text-xs font-semibold focus:outline-none cursor-pointer touch-manipulation"
           >
-            {isDarkStudio ? (
-              <>
-                <Moon className="w-3.5 h-3.5 text-brand" />
-                <span className="hidden md:inline">Studio Hitam</span>
-              </>
-            ) : (
-              <>
-                <Sun className="w-3.5 h-3.5 text-zinc-900" />
-                <span className="hidden md:inline">Studio Putih</span>
-              </>
-            )}
-          </button>
-
-          {/* Desktop Expand / Collapse Panel Toggle */}
-          <button
-            onClick={onToggleCustomizer}
-            title={isCustomizerExpanded ? "Sembunyikan panel kustomisasi (Kanvas Penuh)" : "Tampilkan panel kustomisasi"}
-            className={`min-h-[32px] px-2.5 rounded-xl border flex items-center gap-1.5 text-xs font-semibold shadow-sm transition-all touch-manipulation ${
-              !isCustomizerExpanded
-                ? 'bg-brand text-zinc-950 border-brand font-bold shadow-brand/20'
-                : isDarkStudio 
-                ? 'bg-zinc-900/90 text-zinc-300 border-zinc-800 hover:bg-zinc-800' 
-                : 'bg-white/90 text-zinc-700 border-zinc-200 hover:bg-zinc-100'
-            }`}
-          >
-            {!isCustomizerExpanded ? (
-              <>
-                <SlidersHorizontal className="w-3.5 h-3.5" />
-                <span>Buka Panel</span>
-              </>
-            ) : (
-              <>
-                <Maximize2 className={`w-3.5 h-3.5 ${isDarkStudio ? 'text-brand' : 'text-zinc-900'}`} />
-                <span className="hidden lg:inline">Kanvas Penuh</span>
-              </>
-            )}
-          </button>
+            {GARMENT_MODELS.map((m) => (
+              <option key={m.id} value={m.id} className="text-zinc-900">
+                {m.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="w-3.5 h-3.5 absolute right-2 pointer-events-none text-brand" />
         </div>
 
+        <div className="flex-1" />
+
+        {/* Tampil/sembunyi navigasi sisi */}
+        <button
+          onClick={onToggleSideNav}
+          aria-pressed={showSideNav}
+          title={showSideNav ? 'Sembunyikan navigasi sisi' : 'Tampilkan navigasi sisi'}
+          className={`h-9 w-9 rounded-xl border flex items-center justify-center shadow-sm backdrop-blur transition-all touch-manipulation ${
+            showSideNav ? 'bg-brand text-zinc-950 border-brand' : box
+          }`}
+        >
+          <Compass className="w-4 h-4" />
+        </button>
+
+        {/* Tema studio */}
+        <button
+          onClick={() => onStudioBgChange(dark ? 'white' : 'black')}
+          title={`Ubah latar studio ke ${dark ? 'putih' : 'hitam'}`}
+          aria-label="Ubah tema studio"
+          className={`h-9 w-9 rounded-xl border flex items-center justify-center shadow-sm backdrop-blur transition-all touch-manipulation ${box}`}
+        >
+          {dark ? <Moon className="w-4 h-4 text-brand" /> : <Sun className="w-4 h-4 text-zinc-900" />}
+        </button>
       </div>
+
+      {showSideNav && (
+        <div className="flex justify-center overflow-x-auto scrollbar-none">
+          <div className={`flex items-center p-0.5 rounded-xl border shadow-sm backdrop-blur text-xs font-semibold shrink-0 ${box}`}>
+            {SIDES.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => onSideChange(s.id)}
+                className={`min-h-[30px] px-2.5 sm:px-3 rounded-lg transition-all touch-manipulation whitespace-nowrap ${
+                  currentSide === s.id
+                    ? dark ? 'bg-zinc-800 text-brand font-bold shadow-sm' : 'bg-zinc-900 text-white font-bold shadow-sm'
+                    : idle
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

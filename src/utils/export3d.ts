@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { FabricInfo, TshirtColor, GraphicSettings, PrintTechniqueInfo, PlacementSide } from '../types/sablon';
+import { FabricInfo, TshirtColor, GraphicSettings, PrintTechniqueInfo, PlacementSide, GarmentModel } from '../types/sablon';
 import {
+  HOODIE_SLEEVE_VIEW,
   PrintTextureEntry,
   SHIRT_MODEL_URL,
   buildPrintTexture,
+  prepareHoodieModel,
   prepareShirtModel,
   syncLayerUniforms
 } from './shirt3d';
@@ -16,6 +18,8 @@ export interface Export3DData {
   color: TshirtColor;
   technique: PrintTechniqueInfo;
   graphics: GraphicSettings[];
+  /** model pakaian yang diekspor; kosong = kaos */
+  garment?: GarmentModel;
 }
 
 export interface Shirt3DExporter {
@@ -34,6 +38,16 @@ const SIDE_ANGLE: Record<PlacementSide, number> = {
   sleeve_right: Math.PI / 2
 };
 
+/** Hoodie: lengan dilihat dari depan-samping-atas (sama dengan studio 3D), jadi ada sudut miring (pitch). */
+const hoodieAngles = (side: PlacementSide): { yaw: number; pitch: number } => {
+  switch (side) {
+    case 'front': return { yaw: 0, pitch: 0 };
+    case 'back': return { yaw: Math.PI, pitch: 0 };
+    case 'sleeve_left': return { yaw: -HOODIE_SLEEVE_VIEW.yaw, pitch: HOODIE_SLEEVE_VIEW.pitch };
+    case 'sleeve_right': return { yaw: HOODIE_SLEEVE_VIEW.yaw, pitch: HOODIE_SLEEVE_VIEW.pitch };
+  }
+};
+
 /**
  * Menyiapkan render 3D di luar layar. Model dimuat dan tekstur sablon dibuat sekali,
  * lalu `renderView` dipanggil untuk tiap sisi. Tampilan sama dengan studio 3D:
@@ -44,6 +58,7 @@ export async function createShirt3DExporter(
   requestedSize: number,
   background: Export3DBackground
 ): Promise<Shirt3DExporter> {
+  const garment: GarmentModel = data.garment ?? 'shirt';
   const transparent = background === 'transparent';
   const darkStudio = background === 'black';
 
@@ -101,7 +116,7 @@ export async function createShirt3DExporter(
       new THREE.ShadowMaterial({ opacity: darkStudio ? 0.38 : 0.1 })
     );
     shadowMesh.rotation.x = -Math.PI / 2;
-    shadowMesh.position.y = -0.38;
+    shadowMesh.position.y = garment === 'hoodie' ? -0.34 : -0.38;
     shadowMesh.receiveShadow = true;
     root.add(shadowMesh);
   }
@@ -126,8 +141,13 @@ export async function createShirt3DExporter(
   };
 
   try {
-    const gltf = await new GLTFLoader().loadAsync(SHIRT_MODEL_URL);
-    const { uniforms } = prepareShirtModel(gltf.scene, data.color, data.fabric);
+    const gltf = await new GLTFLoader().loadAsync(garment === 'hoodie' ? '/models/hoodie.glb' : SHIRT_MODEL_URL);
+    const { uniforms } =
+      garment === 'hoodie'
+        ? prepareHoodieModel(gltf.scene, data.color, data.fabric)
+        : prepareShirtModel(gltf.scene, data.color, data.fabric);
+    // Sama dengan studio 3D: skala hanya pada root agar proyeksi sablon di ruang lokal tetap sejajar
+    if (garment === 'hoodie') gltf.scene.scale.setScalar(0.82);
     root.add(gltf.scene);
 
     // Tekstur sablon: lebih tajam untuk gambar besar
@@ -143,14 +163,19 @@ export async function createShirt3DExporter(
         }
       })
     );
-    syncLayerUniforms(uniforms, data.graphics, textures, data.technique);
+    syncLayerUniforms(uniforms, data.graphics, textures, data.technique, garment);
   } catch (err) {
     dispose();
     throw err;
   }
 
   const renderView = (side: PlacementSide): HTMLCanvasElement => {
-    root.rotation.set(0, SIDE_ANGLE[side], 0);
+    if (garment === 'hoodie') {
+      const a = hoodieAngles(side);
+      root.rotation.set(a.pitch, a.yaw, 0);
+    } else {
+      root.rotation.set(0, SIDE_ANGLE[side], 0);
+    }
     renderer.render(scene, camera);
 
     const out = document.createElement('canvas');
