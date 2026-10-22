@@ -5,25 +5,55 @@ root.mkdir(parents=True, exist_ok=True)
 
 plugin = r"""package com.tryd.app;
 
+import android.Manifest;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.ContentValues;
+import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Base64;
 
+import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
+
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
 
 import java.io.OutputStream;
 
-@CapacitorPlugin(name = "Downloads")
+@CapacitorPlugin(
+    name = "Downloads",
+    permissions = {
+        @Permission(alias = "notifications", strings = { Manifest.permission.POST_NOTIFICATIONS })
+    }
+)
 public class DownloadsPlugin extends Plugin {
     @PluginMethod
     public void saveToDownloads(PluginCall call) {
+        if (Build.VERSION.SDK_INT >= 33 && !hasPermission("notifications")) {
+            requestPermissionForAlias("notifications", call, "saveAfterNotificationPermission");
+            return;
+        }
+        saveFileAndNotify(call);
+    }
+
+    @PermissionCallback
+    private void saveAfterNotificationPermission(PluginCall call) {
+        // A declined notification permission must not block saving the requested file.
+        saveFileAndNotify(call);
+    }
+
+    private void saveFileAndNotify(PluginCall call) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             call.reject("Penyimpanan Download otomatis memerlukan Android 10 atau lebih baru.");
             return;
@@ -46,9 +76,7 @@ public class DownloadsPlugin extends Plugin {
             values.put(MediaStore.Downloads.IS_PENDING, 1);
 
             uri = getContext().getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
-            if (uri == null) {
-                throw new IllegalStateException("Android tidak dapat membuat file di folder Download.");
-            }
+            if (uri == null) throw new IllegalStateException("Android tidak dapat membuat file di folder Download.");
 
             byte[] bytes = Base64.decode(data, Base64.DEFAULT);
             try (OutputStream output = getContext().getContentResolver().openOutputStream(uri, "w")) {
@@ -59,12 +87,10 @@ public class DownloadsPlugin extends Plugin {
 
             ContentValues published = new ContentValues();
             published.put(MediaStore.Downloads.IS_PENDING, 0);
-            int updated = getContext().getContentResolver().update(uri, published, null, null);
-            if (updated <= 0) {
+            if (getContext().getContentResolver().update(uri, published, null, null) <= 0) {
                 throw new IllegalStateException("Android gagal menyelesaikan penyimpanan file ke folder Download.");
             }
 
-            // Verify the saved item is queryable in the public Downloads collection.
             try (android.database.Cursor cursor = getContext().getContentResolver().query(
                     uri,
                     new String[] { MediaStore.Downloads.DISPLAY_NAME, MediaStore.Downloads.SIZE, MediaStore.Downloads.IS_PENDING },
@@ -74,18 +100,17 @@ public class DownloadsPlugin extends Plugin {
                 }
                 int sizeIndex = cursor.getColumnIndex(MediaStore.Downloads.SIZE);
                 int pendingIndex = cursor.getColumnIndex(MediaStore.Downloads.IS_PENDING);
-                if (sizeIndex >= 0 && cursor.getLong(sizeIndex) <= 0) {
-                    throw new IllegalStateException("File di folder Download kosong.");
-                }
-                if (pendingIndex >= 0 && cursor.getInt(pendingIndex) != 0) {
-                    throw new IllegalStateException("File masih berstatus proses dan belum selesai disimpan.");
-                }
+                if (sizeIndex >= 0 && cursor.getLong(sizeIndex) <= 0) throw new IllegalStateException("File di folder Download kosong.");
+                if (pendingIndex >= 0 && cursor.getInt(pendingIndex) != 0) throw new IllegalStateException("File belum selesai disimpan.");
             }
 
+            // Native Android notification is posted only after MediaStore verification succeeds.
+            postDownloadNotification(filename, uri);
             JSObject result = new JSObject();
             result.put("uri", uri.toString());
             result.put("filename", filename);
             result.put("folder", "Download/Try-D");
+            result.put("notificationShown", canPostNotifications());
             call.resolve(result);
         } catch (Exception error) {
             if (uri != null) {
@@ -93,6 +118,42 @@ public class DownloadsPlugin extends Plugin {
             }
             call.reject("Gagal menyimpan ke Download/Try-D: " + error.getMessage(), error);
         }
+    }
+
+    private boolean canPostNotifications() {
+        return Build.VERSION.SDK_INT < 33 ||
+            ContextCompat.checkSelfPermission(getContext(), Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void postDownloadNotification(String filename, Uri fileUri) {
+        if (!canPostNotifications()) return;
+        String channelId = "tryd_downloads";
+        NotificationManager manager = (NotificationManager) getContext().getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+        if (manager == null) return;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(channelId, "Unduhan Try-D", NotificationManager.IMPORTANCE_DEFAULT);
+            channel.setDescription("Pemberitahuan saat file desain berhasil disimpan.");
+            manager.createNotificationChannel(channel);
+        }
+
+        Intent openFile = new Intent(Intent.ACTION_VIEW);
+        openFile.setDataAndType(fileUri, getContext().getContentResolver().getType(fileUri));
+        openFile.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+            getContext(), (int) (System.currentTimeMillis() & 0x7fffffff), openFile,
+            PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0)
+        );
+
+        NotificationCompat.Builder notification = new NotificationCompat.Builder(getContext(), channelId)
+            .setSmallIcon(getContext().getApplicationInfo().icon)
+            .setContentTitle("File Try-D berhasil diunduh")
+            .setContentText(filename + " • Download/Try-D")
+            .setStyle(new NotificationCompat.BigTextStyle().bigText(filename + "\\nLokasi: Download/Try-D"))
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT);
+        manager.notify((int) (System.currentTimeMillis() & 0x7fffffff), notification.build());
     }
 }
 """
