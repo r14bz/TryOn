@@ -369,17 +369,16 @@ export default function App() {
                     <span className="truncate">{label}</span>
                   </button>
                 ))}
-              </div>
-
               <button
                 onClick={() => setIsExportOpen(true)}
                 title="Simpan / ekspor desain"
                 aria-label="Simpan"
-                className="ml-1 h-8 px-2 sm:px-2.5 rounded-lg bg-brand hover:bg-brand/85 text-zinc-950 text-[11px] font-semibold flex items-center gap-1 transition-colors shrink-0 touch-manipulation"
+                className="ml-2 h-8 px-2 sm:px-2.5 rounded-lg bg-brand hover:bg-brand/85 text-zinc-950 text-[11px] font-semibold flex items-center gap-1 transition-colors shrink-0 touch-manipulation"
               >
                 <Download className="w-3.5 h-3.5 shrink-0" />
                 <span className="hidden sm:inline">Simpan</span>
               </button>
+              </div>
 
               <button
                 onClick={() => setIsCustomizerExpanded(false)}
