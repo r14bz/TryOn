@@ -373,10 +373,10 @@ export default function App() {
                   onClick={() => setIsExportOpen(true)}
                   title="Simpan / ekspor desain"
                   aria-label="Simpan"
-                  className="h-9 px-2.5 rounded-lg bg-brand hover:bg-brand/85 text-zinc-950 text-xs font-semibold flex items-center gap-1.5 touch-manipulation"
+                  className="flex flex-col items-center justify-center gap-1 py-1 min-w-[54px] text-[10px] font-medium transition-colors touch-manipulation text-zinc-400 hover:text-zinc-200"
                 >
-                  <Download className="w-4 h-4 shrink-0" />
-                  <span>Simpan</span>
+                  <Download className="w-4 h-4 shrink-0 text-brand" />
+                  <span className="truncate">Simpan</span>
                 </button>
               </div>
 
