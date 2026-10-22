@@ -440,15 +440,15 @@ export default function App() {
         ) : (
           <>
             {/* Dock ringkas (mobile): tiga tab + tombol buka */}
-            <div className="lg:hidden shrink-0 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur px-3 py-2 flex items-center justify-between gap-2 z-30 shadow-2xl">
-              <div className="flex items-center gap-1 min-w-0">
+            <div className="lg:hidden shrink-0 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur px-2.5 py-2 flex items-center justify-between z-30 shadow-2xl">
+              <div className="flex-1 flex items-center justify-around">
                 {TABS.map(({ id, label, Icon }) => (
                   <button
                     key={id}
                     onClick={() => handleTabClick(id)}
-                    className="h-9 px-2.5 rounded-lg border border-zinc-800 bg-zinc-900 text-xs font-medium text-zinc-300 hover:text-white flex items-center gap-1.5 touch-manipulation"
+                    className="flex flex-col items-center justify-center gap-1 py-1 min-w-[54px] text-[10px] font-medium text-zinc-400 hover:text-white transition-colors touch-manipulation"
                   >
-                    <Icon className="w-3.5 h-3.5 text-brand" />
+                    <Icon className="w-4 h-4 text-brand" />
                     <span>{label}</span>
                   </button>
                 ))}
@@ -456,18 +456,20 @@ export default function App() {
                   onClick={() => setIsExportOpen(true)}
                   title="Simpan / ekspor desain"
                   aria-label="Simpan"
-                  className="h-9 px-2.5 rounded-lg bg-brand hover:bg-brand/85 text-zinc-950 text-xs font-semibold flex items-center gap-1.5 touch-manipulation"
+                  className="flex flex-col items-center justify-center gap-1 py-1 min-w-[54px] text-[10px] font-bold text-brand hover:text-brand/80 transition-colors touch-manipulation"
                 >
-                  <Download className="w-3.5 h-3.5 shrink-0" />
+                  <Download className="w-4 h-4 shrink-0" />
                   <span>Simpan</span>
                 </button>
               </div>
+
+              <div className="w-[1px] h-8 bg-zinc-800 mx-2" />
 
               <button
                 onClick={() => setIsCustomizerExpanded(true)}
                 title="Buka panel"
                 aria-label="Buka panel"
-                className="h-9 w-11 shrink-0 bg-brand text-zinc-950 rounded-lg flex items-center justify-center shadow-md touch-manipulation"
+                className="h-9 w-9 shrink-0 bg-zinc-900 border border-zinc-800 text-brand rounded-lg flex items-center justify-center shadow-md touch-manipulation"
               >
                 <ChevronUp className="w-5 h-5" />
               </button>
@@ -503,6 +505,15 @@ export default function App() {
                 className="w-10 h-10 rounded-xl bg-brand hover:bg-brand/85 text-zinc-950 flex items-center justify-center shadow-md transition-colors touch-manipulation"
               >
                 <Download className="w-4 h-4 shrink-0" />
+              </button>
+              <div className="w-8 h-[1px] bg-zinc-800 my-1" />
+              <button
+                onClick={() => setIsCustomizerExpanded(false)}
+                title="Sembunyikan panel"
+                aria-label="Sembunyikan panel"
+                className="w-10 h-10 rounded-xl border border-zinc-800 hover:border-brand/60 bg-zinc-900/60 text-zinc-400 hover:text-white flex items-center justify-center transition-colors"
+              >
+                <ChevronLeft className="w-5 h-5 rotate-180" />
               </button>
             </aside>
           </>
