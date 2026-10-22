@@ -21,10 +21,9 @@ function blobToBase64(blob: Blob): Promise<string> {
 }
 
 /**
- * Browser uses its normal download flow. On Android, save the file to the
- * app's Documents/Try-D folder and then open the Android share sheet so the
- * user can also save/copy it to Downloads or another app. A success is only
- * returned after the write and share invocation both complete.
+ * Browser uses its normal download flow. On Android, write to the app-private
+ * cache (which does not require broad storage permissions), then open Android's
+ * share sheet so the user can choose a destination such as Downloads or Drive.
  */
 export async function saveExportBlob(blob: Blob, filename: string): Promise<void> {
   if (!Capacitor.isNativePlatform()) {
@@ -34,11 +33,12 @@ export async function saveExportBlob(blob: Blob, filename: string): Promise<void
 
   const base64 = await blobToBase64(blob);
   const safeName = filename.replace(/[\\/:*?"<>|]/g, '-');
-  const path = `Try-D/${safeName}`;
+  const path = `exports/${safeName}`;
+
   const writeResult = await Filesystem.writeFile({
     path,
     data: base64,
-    directory: Directory.Documents,
+    directory: Directory.Cache,
     recursive: true,
   });
 
@@ -48,18 +48,15 @@ export async function saveExportBlob(blob: Blob, filename: string): Promise<void
 
   const file = await Filesystem.getUri({
     path,
-    directory: Directory.Documents,
+    directory: Directory.Cache,
   });
   if (!file.uri) {
-    throw new Error('File tersimpan di dokumen aplikasi, tetapi lokasinya tidak dapat dibuka.');
+    throw new Error('File dibuat di penyimpanan sementara aplikasi, tetapi lokasinya tidak dapat dibuka.');
   }
 
-  // Native Documents is app-specific on modern Android; expose the actual file
-  // to the user through Android's share sheet rather than falsely claiming it
-  // was downloaded to the public Downloads folder.
   await Share.share({
     title: filename,
-    text: 'File Try-D tersimpan di Dokumen aplikasi. Pilih aplikasi tujuan untuk menyimpan atau membagikannya.',
+    text: 'Pilih Simpan ke perangkat atau aplikasi tujuan untuk menyimpan file hasil ekspor Try-D.',
     url: file.uri,
     dialogTitle: 'Simpan atau bagikan file Try-D',
   });
