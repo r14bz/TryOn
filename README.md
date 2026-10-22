@@ -81,3 +81,7 @@ src/
 - Export 3D: sampai 3072 px, karena WebGL di HP lebih terbatas.
 - Service worker sengaja tidak menyimpan cache, jadi setiap deploy baru di Vercel langsung terlihat. Konsekuensinya, aplikasi tidak bisa dipakai offline.
 - Menambah model pakaian baru: tambahkan entri di `src/data/garmentModels.ts`, perluas tipe `GarmentModel` di `src/types/sablon.ts`, lalu daftarkan konfigurasinya di `src/utils/shirt3d.ts` dan `src/utils/placement.ts`.
+
+## Kredit
+
+Foto 2D hoodie dirender dari model 3D "Hoodie" oleh Virtual Pandora (https://sketchfab.com/3d-models/hoodie-97611a53e3b846f69e0655b210f72b2f), lisensi CC BY 4.0 (http://creativecommons.org/licenses/by/4.0/). Render ini adalah turunan dari model tersebut.
