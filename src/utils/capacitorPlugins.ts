@@ -4,7 +4,7 @@
  */
 
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
-import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 
 export async function captureImageFromGallery() {
@@ -42,12 +42,14 @@ export async function saveImageToGallery(
   fileName: string = 'try-d-mockup.png'
 ) {
   try {
-    // Simpan ke cache terlebih dahulu
+    // Simpan sebagai base64 biner ke direktori Documents aplikasi (bukan Cache).
+    const normalized = base64Data.replace(/^data:[^;]+;base64,/, '');
+    const safeName = fileName.replace(/[\\/\\\\]/g, '-');
     const filePath = await Filesystem.writeFile({
-      path: fileName,
-      data: base64Data,
-      directory: Directory.Cache,
-      encoding: Encoding.UTF8,
+      path: safeName,
+      data: normalized,
+      directory: Directory.Documents,
+      recursive: true,
     });
 
     console.log('File saved to:', filePath.uri);
@@ -63,20 +65,25 @@ export async function shareImage(
   title: string = 'Try-D Mockup'
 ) {
   try {
-    // Untuk Android, kita perlu menyimpan file terlebih dahulu
+    // Share membutuhkan URI file yang valid, bukan nama file relatif.
     const fileName = `try-d-${Date.now()}.png`;
+    const normalized = base64Data.replace(/^data:[^;]+;base64,/, '');
     await Filesystem.writeFile({
       path: fileName,
-      data: base64Data,
+      data: normalized,
       directory: Directory.Cache,
-      encoding: Encoding.UTF8,
+      recursive: true,
+    });
+    const fileUri = await Filesystem.getUri({
+      path: fileName,
+      directory: Directory.Cache,
     });
 
     await Share.share({
-      title: title,
-      text: 'Check out my custom design from Try-D!',
-      url: fileName,
-      dialogTitle: 'Share Your Design',
+      title,
+      text: 'Desain Try-D saya',
+      url: fileUri.uri,
+      dialogTitle: 'Bagikan desain Try-D',
     });
   } catch (error) {
     console.error('Share error:', error);

@@ -1,0 +1,105 @@
+name: Android APK
+
+on:
+  push:
+    branches:
+      - feat/capacitor-android
+      - fix/capacitor-android-release
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-debug-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build web assets
+        run: npm run build
+
+      - name: Generate Android project
+        run: npx cap add android
+
+      - name: Install native Android Downloads plugin
+        run: python3 scripts/install-android-downloads-plugin.py
+
+      - name: Validate AndroidManifest XML
+        run: |
+          echo "=== Validate plugin installer script ==="
+          python3 -m py_compile scripts/install-android-downloads-plugin.py
+
+          echo "=== AndroidManifest.xml ==="
+          cat -n android/app/src/main/AndroidManifest.xml
+
+          echo "=== Validate XML ==="
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+
+          path = "android/app/src/main/AndroidManifest.xml"
+          try:
+              ET.parse(path)
+              print("XML VALID")
+          except ET.ParseError as e:
+              print(f"XML INVALID: {e}")
+              raise
+          PY
+
+      - name: Prepare launcher icon with more padding
+        run: |
+          python3 -m pip install --user Pillow
+          mkdir -p assets
+          python3 - <<'PY'
+          from PIL import Image
+          source = Image.open("public/icon-512.png").convert("RGBA")
+          # Make the launcher background black, and turn near-white background pixels
+          # in the existing logo asset transparent so the yellow TD stays visible.
+          pixels = source.load()
+          for y in range(source.height):
+              for x in range(source.width):
+                  r, g, b, a = pixels[x, y]
+                  if r > 238 and g > 238 and b > 238:
+                      pixels[x, y] = (r, g, b, 0)
+          canvas = Image.new("RGBA", (512, 512), (0, 0, 0, 255))
+          artwork = source.resize((390, 390), Image.Resampling.LANCZOS)
+          canvas.alpha_composite(artwork, ((512 - 390) // 2, (512 - 390) // 2))
+          canvas.save("assets/icon.png")
+          PY
+          npx --yes @capacitor/assets generate --android
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: try-d-android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
