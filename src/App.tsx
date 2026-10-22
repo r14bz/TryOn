@@ -149,7 +149,7 @@ export default function App() {
       currentSide === 'back' ? 'back_a3'
       : currentSide === 'sleeve_left' ? 'sleeve_left'
       : currentSide === 'sleeve_right' ? 'sleeve_right'
-      : 'chest_center';
+      : 'front_a3';
 
     // Hoodie saja: sisi yang sedang dipilih di toolbar diutamakan dibanding preset depan dari
     // contoh gambar. Kaos tetap memakai perilaku produksi (presetId ?? fallback).

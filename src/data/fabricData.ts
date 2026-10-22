@@ -133,33 +133,6 @@ export const PRINT_TECHNIQUES: PrintTechniqueInfo[] = [
 
 export const PLACEMENT_PRESETS: PlacementPreset[] = [
   {
-    id: 'chest_left',
-    name: 'Dada Kiri / Saku (8 × 8 cm)',
-    side: 'front',
-    dimensionsCm: { width: 8, height: 8 },
-    defaultScale: 0.35,
-    defaultX: -22,
-    defaultY: -16
-  },
-  {
-    id: 'chest_center',
-    name: 'Dada Tengah A5 (15 × 21 cm)',
-    side: 'front',
-    dimensionsCm: { width: 15, height: 21 },
-    defaultScale: 0.65,
-    defaultX: 0,
-    defaultY: -12
-  },
-  {
-    id: 'front_a4',
-    name: 'Depan Standar A4 (21 × 30 cm)',
-    side: 'front',
-    dimensionsCm: { width: 21, height: 30 },
-    defaultScale: 0.95,
-    defaultX: 0,
-    defaultY: -4
-  },
-  {
     id: 'front_a3',
     name: 'Full Front A3 (30 × 42 cm)',
     side: 'front',
@@ -176,15 +149,6 @@ export const PLACEMENT_PRESETS: PlacementPreset[] = [
     defaultScale: 1.35,
     defaultX: 0,
     defaultY: 0
-  },
-  {
-    id: 'back_neck',
-    name: 'Tengkuk Belakang (6 × 6 cm)',
-    side: 'back',
-    dimensionsCm: { width: 6, height: 6 },
-    defaultScale: 0.28,
-    defaultX: 0,
-    defaultY: -32
   },
   {
     id: 'sleeve_left',

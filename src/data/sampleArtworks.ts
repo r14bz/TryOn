@@ -3,7 +3,7 @@ export interface SampleArtwork {
   name: string;
   category: 'streetwear' | 'vintage' | 'minimal' | 'typography' | 'anime';
   dataUrl: string;
-  suggestedPreset: 'chest_left' | 'chest_center' | 'front_a4' | 'front_a3';
+  suggestedPreset: 'front_a3';
 }
 
 // Crisp vector SVG graphics converted to data URLs for high-res rendering
@@ -131,27 +131,27 @@ export const SAMPLE_ARTWORKS: SampleArtwork[] = [
     name: 'Bali Surf Sunset (Vintage)',
     category: 'vintage',
     dataUrl: SVG_VINTAGE_SURF,
-    suggestedPreset: 'front_a4'
+    suggestedPreset: 'front_a3'
   },
   {
     id: 'cyber_tiger',
     name: 'Neo Beast Cyber (Graphic)',
     category: 'anime',
     dataUrl: SVG_CYBER_TIGER,
-    suggestedPreset: 'front_a4'
+    suggestedPreset: 'front_a3'
   },
   {
     id: 'minimal_crest',
     name: 'Atelier Crest (Minimalist)',
     category: 'minimal',
     dataUrl: SVG_MINIMAL_CREST,
-    suggestedPreset: 'chest_center'
+    suggestedPreset: 'front_a3'
   },
   {
     id: 'badge_pocket',
     name: 'Kustom Sablon Emblem',
     category: 'typography',
     dataUrl: SVG_BADGE_POCKET,
-    suggestedPreset: 'chest_left'
+    suggestedPreset: 'front_a3'
   }
 ];

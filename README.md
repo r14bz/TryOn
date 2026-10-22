@@ -12,7 +12,7 @@ Live: https://try-d.vercel.app
 - **Hingga 6 lapisan** gambar per pakaian (depan, belakang, lengan kiri, lengan kanan). Lapisan paling atas di daftar tampil paling depan.
 - **Layer teks** yang bisa diedit ulang: 8 pilihan font, warna isi, garis tepi, jarak huruf, dan perataan.
 - **Kontrol tiap lapisan:** posisi, skala, rotasi, opasitas, blend mode (normal, multiply, hard-light, overlay), dan filter warna (asli, putih, hitam, vintage).
-- **Preset penempatan** sesuai ukuran cetak nyata (dada kiri, dada tengah A5, depan A4/A3, punggung A3, tengkuk, lengan kiri/kanan) plus mode custom drag & resize.
+- **Preset penempatan** sesuai ukuran cetak nyata (depan A3, punggung A3, lengan kiri/kanan) plus mode custom drag & resize.
 - **Bahan kain:** Cotton Combed 30s dan 24s, Heavyweight 16s, Cotton Bamboo, Slub Cotton / Pique Vintage, lengkap dengan inspeksi tekstur.
 - **Teknik sablon:** DTF, Plastisol HD, Rubber GL, Discharge, dan Bordir.
 - **Pilihan warna** (16 warna) dan **ukuran** S sampai XXL.

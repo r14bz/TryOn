@@ -45,14 +45,10 @@ export interface PrintTechniqueInfo {
 export type PlacementSide = 'front' | 'back' | 'sleeve_left' | 'sleeve_right';
 
 export type PlacementPresetId = 
-  | 'chest_left' 
-  | 'chest_center' 
-  | 'front_a4' 
-  | 'front_a3' 
-  | 'back_a3' 
-  | 'back_neck' 
-  | 'sleeve_left' 
-  | 'sleeve_right' 
+  | 'front_a3'
+  | 'back_a3'
+  | 'sleeve_left'
+  | 'sleeve_right'
   | 'custom';
 
 export interface PlacementPreset {
