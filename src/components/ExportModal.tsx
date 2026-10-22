@@ -305,7 +305,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           ? {
               kind: 'ok',
               text: Capacitor.isNativePlatform()
-                ? `File berhasil ditulis ke Dokumen aplikasi Try-D dan dialog simpan/bagikan sudah dibuka: ${saved.join(', ')}`
+                ? `Berhasil diunduh ke folder Download/Try-D: ${saved.join(', ')}`
                 : `Unduhan dimulai: ${saved.join(', ')}`
             }
           : { kind: 'error', text: 'Tidak ada gambar sablon pada sisi yang dipilih.' }
@@ -316,7 +316,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       setMessage({
         kind: 'error',
         text: Capacitor.isNativePlatform()
-          ? `Gagal menyimpan file di Dokumen aplikasi Try-D: ${detail}`
+          ? `Gagal mengunduh file ke Download/Try-D: ${detail}`
           : 'Gagal membuat file. Coba resolusi lebih kecil atau format lain.'
       });
     } finally {
@@ -332,7 +332,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             <Download className="w-5 h-5 text-brand shrink-0" />
             <div>
               <h2 className="text-sm font-bold text-white font-display">Simpan Gambar Desain</h2>
-              <p className="text-[11px] text-zinc-400">{Capacitor.isNativePlatform() ? 'Android: simpan lalu pilih tujuan melalui dialog sistem' : 'Hasil resolusi tinggi, langsung diunduh'}</p>
+              <p className="text-[11px] text-zinc-400">{Capacitor.isNativePlatform() ? 'Android: unduh langsung ke folder Download/Try-D' : 'Hasil resolusi tinggi, langsung diunduh'}</p>
             </div>
           </div>
           <button
