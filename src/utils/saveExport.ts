@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 import { downloadBlob } from './exportDesign';
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -20,8 +21,10 @@ function blobToBase64(blob: Blob): Promise<string> {
 }
 
 /**
- * Unduh pada browser web. Di Android native, tulis data biner ke Documents
- * milik aplikasi agar file tidak hilang saat cache dibersihkan.
+ * Browser uses its normal download flow. On Android, save the file to the
+ * app's Documents/Try-D folder and then open the Android share sheet so the
+ * user can also save/copy it to Downloads or another app. A success is only
+ * returned after the write and share invocation both complete.
  */
 export async function saveExportBlob(blob: Blob, filename: string): Promise<void> {
   if (!Capacitor.isNativePlatform()) {
@@ -31,10 +34,33 @@ export async function saveExportBlob(blob: Blob, filename: string): Promise<void
 
   const base64 = await blobToBase64(blob);
   const safeName = filename.replace(/[\\/:*?"<>|]/g, '-');
-  await Filesystem.writeFile({
-    path: `Try-D/${safeName}`,
+  const path = `Try-D/${safeName}`;
+  const writeResult = await Filesystem.writeFile({
+    path,
     data: base64,
     directory: Directory.Documents,
     recursive: true,
+  });
+
+  if (!writeResult.uri) {
+    throw new Error('Android tidak mengembalikan lokasi file setelah penyimpanan.');
+  }
+
+  const file = await Filesystem.getUri({
+    path,
+    directory: Directory.Documents,
+  });
+  if (!file.uri) {
+    throw new Error('File tersimpan di dokumen aplikasi, tetapi lokasinya tidak dapat dibuka.');
+  }
+
+  // Native Documents is app-specific on modern Android; expose the actual file
+  // to the user through Android's share sheet rather than falsely claiming it
+  // was downloaded to the public Downloads folder.
+  await Share.share({
+    title: filename,
+    text: 'File Try-D tersimpan di Dokumen aplikasi. Pilih aplikasi tujuan untuk menyimpan atau membagikannya.',
+    url: file.uri,
+    dialogTitle: 'Simpan atau bagikan file Try-D',
   });
 }
