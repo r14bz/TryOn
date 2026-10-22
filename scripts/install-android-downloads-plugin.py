@@ -184,11 +184,12 @@ if manifest.exists():
     manifest_text = manifest.read_text(encoding="utf-8")
     permission = '<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />'
     if permission not in manifest_text:
-        manifest_text = manifest_text.replace("<manifest", "<manifest", 1)
-        close = manifest_text.find(">")
-        if close < 0:
-            raise SystemExit("Tag manifest tidak ditemukan.")
-        manifest_text = manifest_text[:close + 1] + "\n    " + permission + manifest_text[close + 1:]
+        import re
+        match = re.search(r"<manifest\\b[^>]*>", manifest_text)
+        if match is None:
+            raise SystemExit("Tag pembuka <manifest> tidak ditemukan.")
+        insert_at = match.end()
+        manifest_text = manifest_text[:insert_at] + "\n    " + permission + manifest_text[insert_at:]
         manifest.write_text(manifest_text, encoding="utf-8")
 else:
     raise SystemExit("AndroidManifest.xml tidak ditemukan.")
