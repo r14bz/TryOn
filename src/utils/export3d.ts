@@ -122,6 +122,8 @@ export async function createShirt3DExporter(
   }
 
   const textures = new Map<string, PrintTextureEntry>();
+  const cameraDistances = new Map<PlacementSide, number>();
+  
   const dispose = () => {
     scene.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
@@ -150,56 +152,51 @@ export async function createShirt3DExporter(
     if (garment === 'hoodie') gltf.scene.scale.setScalar(0.82);
     root.add(gltf.scene);
 
-    // Framing eksport: hitung jarak kamera presisi per sisi agar model memenuhi
-    // frame persegi (aspect 1) tanpa terpotong. Sphere-based terlalu konservatif;
-    // bbox presisi per sisi memungkinkan zoom lebih dekat (depan/belakang ~19% lebih besar).
-    gltf.scene.updateMatrixWorld(true);
-    const bounds = new THREE.Box3().setFromObject(gltf.scene);
+    // Framing eksport: hitung jarak kamera presisi per sisi (hanya hoodie) agar
+    // model muat di frame persegi (aspect 1) tanpa terpotong. Hitung dari setiap
+    // vertex (bukan bounding sphere konservatif), jadi fit seketat mungkin.
+    // Kaos tetap pada jarak studio (1.35) agar perilaku ekspor kaos tidak berubah.
     const fovHalfRad = ((35 / 2) * Math.PI) / 180;
     const tanFov = Math.tan(fovHalfRad);
-    
-    // Cache jarak per sisi (dihitung lazy di renderView saat pertama kali dibutuhkan)
-    const cameraDistances = new Map<PlacementSide, number>();
-    
-    const computeCameraDistance = (side: PlacementSide): number => {
-      if (cameraDistances.has(side)) return cameraDistances.get(side)!;
-      
-      // Terapkan rotasi ke bounding box untuk menghitung jarak presisi per sisi
-      let rotMatrix: THREE.Matrix4;
-      if (garment === 'hoodie') {
-        const angles = hoodieAngles(side);
-        rotMatrix = new THREE.Matrix4().makeRotationFromEuler(
-          new THREE.Euler(angles.pitch, angles.yaw, 0, 'XYZ')
-        );
-      } else {
-        rotMatrix = new THREE.Matrix4().makeRotationY(SIDE_ANGLE[side]);
-      }
-      
-      // Hitung bbox rotated
-      const corners = [
-        new THREE.Vector3(bounds.min.x, bounds.min.y, bounds.min.z),
-        new THREE.Vector3(bounds.max.x, bounds.min.y, bounds.min.z),
-        new THREE.Vector3(bounds.min.x, bounds.max.y, bounds.min.z),
-        new THREE.Vector3(bounds.max.x, bounds.max.y, bounds.min.z),
-        new THREE.Vector3(bounds.min.x, bounds.min.y, bounds.max.z),
-        new THREE.Vector3(bounds.max.x, bounds.min.y, bounds.max.z),
-        new THREE.Vector3(bounds.min.x, bounds.max.y, bounds.max.z),
-        new THREE.Vector3(bounds.max.x, bounds.max.y, bounds.max.z)
-      ];
-      
-      // Jarak kamera agar bbox rotated masuk dalam frustum persegi
-      // Kamera di (0,0,d) melihat origin; untuk titik (x,y,z) di cam space: perlu |x|/t + z <= d dan |y|/t + z <= d
+    const FIT_MARGIN = 1.02;
+    const MAX_DISTANCE = 2.6;
+
+    const computeHoodieDistance = (side: PlacementSide): number => {
+      const angles = hoodieAngles(side);
+      root.rotation.set(angles.pitch, angles.yaw, 0);
+      root.updateMatrixWorld(true);
+
       let required = 0;
-      for (const corner of corners) {
-        corner.applyMatrix4(rotMatrix);
-        required = Math.max(required, Math.abs(corner.x) / tanFov + corner.z, Math.abs(corner.y) / tanFov + corner.z);
-      }
-      
-      // Margin ketat karena fit sudah presisi
-      const distance = Math.max(1.35, Math.min(2.6, required * 1.02));
-      cameraDistances.set(side, distance);
-      return distance;
+      const v = new THREE.Vector3();
+      // Traverse hanya gltf.scene: shadowMesh (child root, ikut rotasi) diabaikan
+      gltf.scene.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const position = mesh.geometry.attributes.position;
+        if (!position) return;
+        for (let i = 0; i < position.count; i++) {
+          v.fromBufferAttribute(position, i).applyMatrix4(mesh.matrixWorld);
+          required = Math.max(
+            required,
+            Math.abs(v.x) / tanFov + v.z,
+            Math.abs(v.y) / tanFov + v.z
+          );
+        }
+      });
+      root.rotation.set(0, 0, 0);
+
+      return Math.max(1.35, Math.min(MAX_DISTANCE, required * FIT_MARGIN));
     };
+
+    if (garment === 'hoodie') {
+      for (const side of ['front', 'back', 'sleeve_left', 'sleeve_right'] as PlacementSide[]) {
+        cameraDistances.set(side, computeHoodieDistance(side));
+      }
+    } else {
+      for (const side of ['front', 'back', 'sleeve_left', 'sleeve_right'] as PlacementSide[]) {
+        cameraDistances.set(side, 1.35);
+      }
+    }
 
     // Tekstur sablon: lebih tajam untuk gambar besar
     const texW = size >= 2048 ? 2048 : 1024;
@@ -228,9 +225,9 @@ export async function createShirt3DExporter(
       root.rotation.set(0, SIDE_ANGLE[side], 0);
     }
     
-    // Gunakan jarak kamera presisi per sisi
-    camera.position.z = computeCameraDistance(side);
-    
+    // Jarak kamera presisi per sisi
+    camera.position.z = cameraDistances.get(side) ?? 1.35;
+
     renderer.render(scene, camera);
 
     const out = document.createElement('canvas');
