@@ -179,4 +179,18 @@ elif kotlin_activity.exists():
         kotlin_activity.write_text(text, encoding="utf-8")
 else:
     raise SystemExit("MainActivity.java/kt tidak ditemukan di proyek Android hasil cap add.")
+manifest = Path("android/app/src/main/AndroidManifest.xml")
+if manifest.exists():
+    manifest_text = manifest.read_text(encoding="utf-8")
+    permission = '<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />'
+    if permission not in manifest_text:
+        manifest_text = manifest_text.replace("<manifest", "<manifest", 1)
+        close = manifest_text.find(">")
+        if close < 0:
+            raise SystemExit("Tag manifest tidak ditemukan.")
+        manifest_text = manifest_text[:close + 1] + "\\n    " + permission + manifest_text[close + 1:]
+        manifest.write_text(manifest_text, encoding="utf-8")
+else:
+    raise SystemExit("AndroidManifest.xml tidak ditemukan.")
+
 print("Native Downloads plugin terpasang.")
