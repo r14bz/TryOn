@@ -64,21 +64,25 @@ export function getHoodiePlacement2D(
 
   if (graphic.side === 'sleeve_left' || graphic.side === 'sleeve_right') {
     // Lengan pada foto Virtual Pandora: diukur dari region map PNG channel G/B.
-    // Mid-arm (y ≈ 620 di 1024 canvas): left sleeve cx ≈ 732, right sleeve cx ≈ 292 (±220 dari center).
-    // Slider offset menggunakan rangeX/Y dari placement.ts, dikalikan ppuX/ppuY.
+    // Mid-arm (y ≈ 544 di 1024 canvas): left sleeve cx ≈ 732, right sleeve cx ≈ 299 (±212 dari center).
+    // Offset vertikal mengikuti mid-arm (32 px dari center canvas).
     const sign = graphic.side === 'sleeve_left' ? 1 : -1;
-    const cx_base = cx0 + sign * 220;
-    const cy_base = cy0 + 108; // mid-arm vertical: 620 - 512 = 108 px offset
+    const cx_base = cx0 + sign * HOODIE_2D.sleeveXOffset;
+    const cy_base = cy0 + HOODIE_2D.sleeveYOffset;
     const rangeX_px = place.rangeX * ppuX;
     const rangeY_px = place.rangeY * ppuY;
-    const cx = cx_base + (graphic.x / 50) * rangeX_px;
-    const cy = cy_base + (graphic.y / 50) * rangeY_px;
+    // Netralisasi default slider lengan hoodie (x=±46, y=-15) agar pusat sablon jatuh di mid-arm.
+    const nx = graphic.x - sign * 46;
+    const ny = graphic.y + 15;
+    const cx = cx_base + (nx / 50) * rangeX_px;
+    const cy = cy_base + (ny / 50) * rangeY_px;
     return { cx, cy, printW, printH, extraRot: 0 };
   }
 
   // Badan. Pemetaan langsung dari repo model space ke pixel dengan ppuX/ppuY terpisah.
+  // bodyYOffset menurunkan sablon agar tidak menabrak neckline (region body mulai y=350 di kanvas 1024).
   const X = (graphic.x / 50) * place.rangeX;
-  const Y = place.baseY - (graphic.y / 50) * place.rangeY;
+  const Y = place.baseY - (graphic.y / 50) * place.rangeY + HOODIE_2D.bodyYOffset;
   const cx = cx0 + X * ppuX;
   const cy = cy0 - Y * ppuY;
   return { cx, cy, printW, printH, extraRot: 0 };

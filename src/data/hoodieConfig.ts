@@ -42,6 +42,12 @@ export const HOODIE_2D = {
   ppuX: 928,
   /** piksel per satuan model sumbu Y pada kanvas 1024 px (dari render ppu 2440.6 disesuaikan tinggi model 0.82) */
   ppuY: 1149,
+  /** offset geser turun (dalam satuan model) untuk badan agar tidak terpotong di leher (neckline) */
+  bodyYOffset: -0.045,
+  /** offset horizontal lengan (px dari center) untuk render Virtual Pandora */
+  sleeveXOffset: 212,
+  /** offset vertikal lengan (px dari center) - mid-arm */
+  sleeveYOffset: 32,
   /** sudut tekuk lengan ke bawah pada foto (rad); model baru: lengan lurus */
   bend: 0,
   /** tekukan naik halus dari bahu: jarak sepanjang lengan mulai dan selesai menekuk (tidak dipakai saat bend=0) */
