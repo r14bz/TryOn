@@ -307,10 +307,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       );
     } catch (err) {
       console.error('Export failed:', err);
+      const detail = err instanceof Error ? err.message : String(err);
       setMessage({
         kind: 'error',
-        text:
-          'Gagal membuat file. Kemungkinan memori browser tidak cukup untuk resolusi ini, coba resolusi yang lebih kecil.'
+        text: Capacitor.isNativePlatform()
+          ? `Gagal menyimpan file di Dokumen aplikasi Try-D: ${detail}`
+          : 'Gagal membuat file. Coba resolusi lebih kecil atau format lain.'
       });
     } finally {
       setBusy(null);
