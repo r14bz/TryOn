@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { X, Download, Loader2 } from 'lucide-react';
 import { FabricInfo, TshirtColor, GraphicSettings, PrintTechniqueInfo, PlacementSide, GarmentModel } from '../types/sablon';
 import { GARMENT_MODELS } from '../data/garmentModels';
@@ -324,7 +325,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             <Download className="w-5 h-5 text-brand shrink-0" />
             <div>
               <h2 className="text-sm font-bold text-white font-display">Simpan Gambar Desain</h2>
-              <p className="text-[11px] text-zinc-400">Resolusi tinggi • unduh di web, simpan ke Dokumen di Android</p>
+              <p className="text-[11px] text-zinc-400">{Capacitor.isNativePlatform() ? 'File Android disimpan di Dokumen aplikasi Try-D' : 'Hasil resolusi tinggi, langsung diunduh'}</p>
             </div>
           </div>
           <button
