@@ -452,6 +452,15 @@ export default function App() {
                     <span>{label}</span>
                   </button>
                 ))}
+                <button
+                  onClick={() => setIsExportOpen(true)}
+                  title="Simpan / ekspor desain"
+                  aria-label="Simpan"
+                  className="h-9 px-2.5 rounded-lg bg-brand hover:bg-brand/85 text-zinc-950 text-xs font-semibold flex items-center gap-1.5 touch-manipulation"
+                >
+                  <Download className="w-3.5 h-3.5 shrink-0" />
+                  <span>Simpan</span>
+                </button>
               </div>
 
               <button
@@ -486,6 +495,15 @@ export default function App() {
                   <Icon className="w-4 h-4 text-brand" />
                 </button>
               ))}
+              <div className="w-8 h-[1px] bg-zinc-800 my-1" />
+              <button
+                onClick={() => setIsExportOpen(true)}
+                title="Simpan / ekspor desain"
+                aria-label="Simpan"
+                className="w-10 h-10 rounded-xl bg-brand hover:bg-brand/85 text-zinc-950 flex items-center justify-center shadow-md transition-colors touch-manipulation"
+              >
+                <Download className="w-4 h-4 shrink-0" />
+              </button>
             </aside>
           </>
         )}
