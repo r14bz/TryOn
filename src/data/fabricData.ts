@@ -155,7 +155,7 @@ export const PLACEMENT_PRESETS: PlacementPreset[] = [
     name: 'Lengan Atas Kiri (8 × 8 cm)',
     side: 'sleeve_left',
     dimensionsCm: { width: 8, height: 8 },
-    defaultScale: 0.45,
+    defaultScale: 1.00,
     defaultX: 0,
     defaultY: -5
   },
@@ -164,7 +164,7 @@ export const PLACEMENT_PRESETS: PlacementPreset[] = [
     name: 'Lengan Atas Kanan (8 × 8 cm)',
     side: 'sleeve_right',
     dimensionsCm: { width: 8, height: 8 },
-    defaultScale: 0.45,
+    defaultScale: 1.00,
     defaultX: 0,
     defaultY: -5
   },
